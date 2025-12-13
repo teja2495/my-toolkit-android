@@ -17,15 +17,23 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.tk.myapp.data.SecureStorage
+import com.tk.myapp.data.Shortcut
+import com.tk.myapp.ui.components.RewritelyCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     onNavigateToApiKeys: () -> Unit
 ) {
+    val context = LocalContext.current
+    val secureStorage = remember { SecureStorage(context) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -39,9 +47,22 @@ fun MainScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
+            RewritelyCard(
+                secureStorage = secureStorage,
+                onShortcutAdded = { name, prompt, useChatGPT ->
+                    val shortcut = Shortcut(
+                        name = name,
+                        prompt = prompt,
+                        useChatGPT = useChatGPT
+                    )
+                    secureStorage.addShortcut(shortcut)
+                }
+            )
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(top = 16.dp)
                     .clickable { onNavigateToApiKeys() }
             ) {
                 Row(
