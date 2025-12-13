@@ -4,6 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Bundle
@@ -41,6 +45,10 @@ class MyAccessibilityService : AccessibilityService() {
     
     private val channelId = "accessibility_service_channel"
     private val notificationId = 1001
+    
+    private var pendingChatGPTText: String? = null
+    private var chatGPTOpenAttempts = 0
+    private val maxChatGPTAttempts = 20 // Try for about 4 seconds
     
     companion object {
         private const val TAG = "MyAccessibilityService"
@@ -83,6 +91,20 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Handle ChatGPT app text pasting
+        if (pendingChatGPTText != null && event?.packageName == "com.openai.chatgpt") {
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                    scope.launch {
+                        delay(200) // Small delay to let UI stabilize
+                        tryPasteToChatGPT()
+                    }
+                }
+            }
+            return
+        }
+        
         if (ignoringTextChanges) return
         
         when (event?.eventType) {
@@ -125,8 +147,6 @@ class MyAccessibilityService : AccessibilityService() {
         if (shortcuts.isEmpty()) return
         
         for (shortcut in shortcuts) {
-            if (!shortcut.useChatGPT) continue // Only process ChatGPT shortcuts
-            
             // Detect shortcut pattern: "[shortcut] " (shortcut followed by space)
             val pattern = Regex(Regex.escape(shortcut.name) + "\\s", RegexOption.IGNORE_CASE)
             
@@ -135,19 +155,35 @@ class MyAccessibilityService : AccessibilityService() {
                 val cleanedText = currentText.replaceFirst(pattern, "").trim()
                 if (cleanedText.isBlank()) continue
                 
-                // Store original text for restoration on failure
-                textBeforeShortcutRemoval = cleanedText
-                
-                // Remove shortcut from field immediately
-                ignoringTextChanges = true
-                setInputFieldText(cleanedText)
-                scope.launch {
-                    delay(120) // Small delay to ensure text is set
-                    ignoringTextChanges = false
+                if (shortcut.useChatGPT) {
+                    // Remove shortcut from field first
+                    ignoringTextChanges = true
+                    setInputFieldText(cleanedText)
+                    scope.launch {
+                        delay(100) // Small delay to ensure text is set
+                        // Then select all the remaining text
+                        selectAllText()
+                        delay(100) // Small delay to ensure text is selected
+                        ignoringTextChanges = false
+                        // Open ChatGPT app and paste text
+                        openChatGPTApp(cleanedText, shortcut.prompt)
+                    }
+                } else {
+                    // Use API
+                    // Store original text for restoration on failure
+                    textBeforeShortcutRemoval = cleanedText
+                    
+                    // Remove shortcut from field immediately
+                    ignoringTextChanges = true
+                    setInputFieldText(cleanedText)
+                    scope.launch {
+                        delay(120) // Small delay to ensure text is set
+                        ignoringTextChanges = false
+                    }
+                    
+                    // Trigger API call with this shortcut's prompt
+                    fetchNewText(cleanedText, shortcut.prompt)
                 }
-                
-                // Trigger API call with this shortcut's prompt
-                fetchNewText(cleanedText, shortcut.prompt)
                 break // Only process first matching shortcut
             }
         }
@@ -164,6 +200,120 @@ class MyAccessibilityService : AccessibilityService() {
         if (selectedApps.isEmpty()) return true
         // Otherwise, only monitor selected apps
         return selectedApps.any { it.packageName == packageName }
+    }
+
+    private fun openChatGPTApp(extractedText: String, configuredPrompt: String) {
+        try {
+            // Ensure prompt ends with ": " (colon and space)
+            val normalizedPrompt = when {
+                configuredPrompt.endsWith(": ") -> configuredPrompt
+                configuredPrompt.endsWith(":") -> "${configuredPrompt.dropLast(1)}: "
+                else -> "$configuredPrompt: "
+            }
+            
+            val fullPrompt = "$normalizedPrompt$extractedText"
+            
+            // Store the text to paste once ChatGPT opens
+            pendingChatGPTText = fullPrompt
+            chatGPTOpenAttempts = 0
+            
+            // Copy the prompt to clipboard as backup
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("ChatGPT Prompt", fullPrompt)
+            clipboard.setPrimaryClip(clip)
+            
+            // Try to open ChatGPT app
+            val intent = packageManager.getLaunchIntentForPackage("com.openai.chatgpt")
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                Toast.makeText(this, "Opening ChatGPT...", Toast.LENGTH_SHORT).show()
+            } else {
+                // ChatGPT app not installed, show message
+                pendingChatGPTText = null
+                Toast.makeText(this, "ChatGPT app not installed. Prompt copied to clipboard.", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to open ChatGPT app", e)
+            pendingChatGPTText = null
+            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun tryPasteToChatGPT() {
+        if (pendingChatGPTText == null) return
+        
+        chatGPTOpenAttempts++
+        
+        // Give up after max attempts
+        if (chatGPTOpenAttempts > maxChatGPTAttempts) {
+            Log.d(TAG, "Failed to find ChatGPT input field after $maxChatGPTAttempts attempts")
+            Toast.makeText(this, "Please paste manually from clipboard", Toast.LENGTH_SHORT).show()
+            pendingChatGPTText = null
+            chatGPTOpenAttempts = 0
+            return
+        }
+        
+        try {
+            val rootNode = rootInActiveWindow ?: return
+            
+            // Look for editable text field (input box) in ChatGPT
+            val inputField = findEditableNode(rootNode)
+            
+            if (inputField != null) {
+                // Found the input field, paste the text
+                val textToPaste = pendingChatGPTText ?: return
+                
+                Bundle().apply {
+                    putCharSequence(
+                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                        textToPaste
+                    )
+                    inputField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, this)
+                }
+                
+                // Move cursor to end
+                Bundle().apply {
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, textToPaste.length)
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, textToPaste.length)
+                    inputField.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, this)
+                }
+                
+                inputField.recycle()
+                
+                Log.d(TAG, "Successfully pasted text to ChatGPT")
+                Toast.makeText(this, "Text pasted to ChatGPT", Toast.LENGTH_SHORT).show()
+                
+                // Clear pending text
+                pendingChatGPTText = null
+                chatGPTOpenAttempts = 0
+            } else {
+                // Input field not found yet, will retry on next event
+                Log.d(TAG, "ChatGPT input field not found yet (attempt $chatGPTOpenAttempts)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error pasting to ChatGPT", e)
+            pendingChatGPTText = null
+            chatGPTOpenAttempts = 0
+        }
+    }
+    
+    private fun findEditableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isEditable && node.className == "android.widget.EditText") {
+            return AccessibilityNodeInfo.obtain(node)
+        }
+        
+        for (i in 0 until node.childCount) {
+            node.getChild(i)?.let { child ->
+                findEditableNode(child)?.let { found ->
+                    child.recycle()
+                    return found
+                }
+                child.recycle()
+            }
+        }
+        
+        return null
     }
 
     private fun fetchNewText(extractedText: String, configuredPrompt: String) {
@@ -254,6 +404,20 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun selectAllText() {
+        val node = currentNode?.get()?.takeIf { it.stillValid() } ?: return
+        
+        // Select all text in the field
+        val text = node.text?.toString() ?: ""
+        if (text.isNotEmpty()) {
+            Bundle().apply {
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, text.length)
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, this)
+            }
+        }
+    }
+    
     private fun setInputFieldText(text: String) {
         val node = currentNode?.get()?.takeIf { it.stillValid() } ?: return
         
