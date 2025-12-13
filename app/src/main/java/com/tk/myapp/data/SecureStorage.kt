@@ -95,9 +95,46 @@ class SecureStorage(context: Context) {
         }
     }
 
+    fun saveSelectedApps(apps: List<AppInfo>) {
+        val jsonArray = JSONArray()
+        apps.forEach { app ->
+            val jsonObject = JSONObject().apply {
+                put("packageName", app.packageName)
+                put("appName", app.appName)
+            }
+            jsonArray.put(jsonObject)
+        }
+        regularPreferences.edit().putString(KEY_SELECTED_APPS, jsonArray.toString()).apply()
+    }
+
+    fun getSelectedApps(): List<AppInfo> {
+        val jsonString = regularPreferences.getString(KEY_SELECTED_APPS, null)
+        return if (jsonString != null) {
+            try {
+                val jsonArray = JSONArray(jsonString)
+                val apps = mutableListOf<AppInfo>()
+                for (i in 0 until jsonArray.length()) {
+                    val jsonObject = jsonArray.getJSONObject(i)
+                    apps.add(
+                        AppInfo(
+                            packageName = jsonObject.getString("packageName"),
+                            appName = jsonObject.getString("appName")
+                        )
+                    )
+                }
+                apps
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
     companion object {
         const val KEY_GEMINI_API_KEY = "gemini_api_key"
         const val KEY_OPENAI_API_KEY = "openai_api_key"
         const val KEY_SHORTCUTS = "shortcuts"
+        const val KEY_SELECTED_APPS = "selected_apps"
     }
 }

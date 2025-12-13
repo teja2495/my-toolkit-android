@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.tk.myapp.data.AppInfo
 import com.tk.myapp.data.SecureStorage
 import com.tk.myapp.data.Shortcut
 
@@ -40,11 +41,14 @@ fun RewritelyCard(
     onShortcutAdded: (String, String, Boolean) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
+    var showChooseAppsDialog by remember { mutableStateOf(false) }
     var editingShortcut by remember { mutableStateOf<Shortcut?>(null) }
     var shortcuts by remember { mutableStateOf<List<Shortcut>>(emptyList()) }
+    var selectedApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         shortcuts = secureStorage.getShortcuts()
+        selectedApps = secureStorage.getSelectedApps()
     }
 
     Card(
@@ -111,7 +115,9 @@ fun RewritelyCard(
 
             Button(
                 onClick = { showDialog = true },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.Add,
@@ -119,6 +125,60 @@ fun RewritelyCard(
                     modifier = Modifier.padding(end = 8.dp)
                 )
                 Text("Add Shortcut")
+            }
+
+            if (selectedApps.isNotEmpty()) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                ) {
+                    items(selectedApps) { app ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = app.appName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val updatedApps = selectedApps.toMutableList()
+                                        updatedApps.remove(app)
+                                        secureStorage.saveSelectedApps(updatedApps)
+                                        selectedApps = secureStorage.getSelectedApps()
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Remove app",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Button(
+                onClick = { showChooseAppsDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Choose Apps")
             }
         }
     }
@@ -147,6 +207,17 @@ fun RewritelyCard(
                 shortcuts = secureStorage.getShortcuts()
                 editingShortcut = null
             }
+        )
+    }
+
+    if (showChooseAppsDialog) {
+        ChooseAppsDialog(
+            onDismiss = { showChooseAppsDialog = false },
+            onSave = { apps ->
+                secureStorage.saveSelectedApps(apps)
+                selectedApps = secureStorage.getSelectedApps()
+            },
+            selectedApps = selectedApps
         )
     }
 }
