@@ -85,43 +85,40 @@ fun PermissionsScreen() {
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            ) {
-                Column(
+            if (isAccessibilityEnabled) {
+                // Show message when all permissions are provided
+                Text(
+                    text = "All permissions are provided",
+                    style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
+                )
+            } else {
+                // Show permission card only when permission is not granted
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
                 ) {
-                    Text(
-                        text = "Accessibility Permission",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    Text(
-                        text = if (isAccessibilityEnabled) {
-                            "Accessibility permission is enabled"
-                        } else {
-                            "Accessibility permission is required for this app to function properly. Please enable it in the settings."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-
-                    Button(
-                        onClick = { openAccessibilitySettings() },
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
                     ) {
                         Text(
-                            text = if (isAccessibilityEnabled) {
-                                "Open Accessibility Settings"
-                            } else {
-                                "Enable Accessibility Permission"
-                            }
+                            text = "Accessibility Permission",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
+                        
+
+                        Button(
+                            onClick = { openAccessibilitySettings() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Enable Accessibility Permission")
+                        }
                     }
                 }
             }

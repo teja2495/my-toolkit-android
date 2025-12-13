@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +56,7 @@ fun ChooseAppsDialog(
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     var filteredApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     var checkedApps by remember(selectedApps) { mutableStateOf<Set<String>>(selectedApps.map { it.packageName }.toSet()) }
+    var isLoading by remember { mutableStateOf(true) }
 
     // Load all installed apps using queryIntentActivities
     LaunchedEffect(Unit) {
@@ -84,6 +87,7 @@ fun ChooseAppsDialog(
         // Sort by app name
         allApps = apps.sortedBy { it.appName }
         filteredApps = allApps
+        isLoading = false
     }
 
     // Filter apps based on search query
@@ -132,34 +136,54 @@ fun ChooseAppsDialog(
                 )
 
                 // App list with checkboxes
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight()
-                        .padding(top = 16.dp)
-                ) {
-                    items(filteredApps) { app ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = checkedApps.contains(app.packageName),
-                                onCheckedChange = { isChecked ->
-                                    checkedApps = if (isChecked) {
-                                        checkedApps + app.packageName
-                                    } else {
-                                        checkedApps - app.packageName
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight()
+                            .padding(top = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight()
+                            .padding(top = 16.dp)
+                    ) {
+                        items(filteredApps) { app ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        val isChecked = checkedApps.contains(app.packageName)
+                                        checkedApps = if (isChecked) {
+                                            checkedApps - app.packageName
+                                        } else {
+                                            checkedApps + app.packageName
+                                        }
                                     }
-                                }
-                            )
-                            Text(
-                                text = app.appName,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = checkedApps.contains(app.packageName),
+                                    onCheckedChange = { isChecked ->
+                                        checkedApps = if (isChecked) {
+                                            checkedApps + app.packageName
+                                        } else {
+                                            checkedApps - app.packageName
+                                        }
+                                    }
+                                )
+                                Text(
+                                    text = app.appName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
                         }
                     }
                 }

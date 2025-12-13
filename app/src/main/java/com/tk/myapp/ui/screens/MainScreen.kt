@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,18 +48,6 @@ fun MainScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            RewritelyCard(
-                secureStorage = secureStorage,
-                onShortcutAdded = { name, prompt, useChatGPT ->
-                    val shortcut = Shortcut(
-                        name = name,
-                        prompt = prompt,
-                        useChatGPT = useChatGPT
-                    )
-                    secureStorage.addShortcut(shortcut)
-                }
-            )
-
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -78,7 +66,7 @@ fun MainScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Icon(
-                        imageVector = Icons.Filled.ArrowForward,
+                        imageVector = Icons.Filled.ChevronRight,
                         contentDescription = "Navigate"
                     )
                 }
@@ -102,10 +90,26 @@ fun MainScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Icon(
-                        imageVector = Icons.Filled.ArrowForward,
+                        imageVector = Icons.Filled.ChevronRight,
                         contentDescription = "Navigate"
                     )
                 }
+            }
+
+            Column(
+                modifier = Modifier.padding(top = 16.dp)
+            ) {
+                RewritelyCard(
+                    secureStorage = secureStorage,
+                    onShortcutAdded = { name, prompt, useChatGPT ->
+                        val shortcut = Shortcut(
+                            name = name,
+                            prompt = prompt,
+                            useChatGPT = useChatGPT
+                        )
+                        secureStorage.addShortcut(shortcut)
+                    }
+                )
             }
         }
     }

@@ -86,7 +86,7 @@ fun AddShortcutDialog(
                         onCheckedChange = { useChatGPT = it }
                     )
                     Text(
-                        text = "Open ChatGPT App (uncheck to use API)",
+                        text = "Open ChatGPT App",
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(start = 8.dp)
                     )
