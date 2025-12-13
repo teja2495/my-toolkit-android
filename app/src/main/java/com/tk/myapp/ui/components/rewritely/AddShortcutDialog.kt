@@ -1,10 +1,9 @@
 package com.tk.myapp.ui.components.rewritely
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,7 +45,8 @@ fun AddShortcutDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 OutlinedTextField(
                     value = shortcutName,
@@ -60,8 +60,6 @@ fun AddShortcutDialog(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
                 OutlinedTextField(
                     value = shortcutPrompt,
                     onValueChange = { shortcutPrompt = it },
@@ -74,8 +72,6 @@ fun AddShortcutDialog(
                         onDone = { focusManager.clearFocus() }
                     )
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

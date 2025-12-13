@@ -1,10 +1,9 @@
 package com.tk.myapp.ui.components.rewritely
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -48,7 +47,8 @@ fun EditShortcutDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 OutlinedTextField(
                     value = shortcutName,
@@ -61,8 +61,6 @@ fun EditShortcutDialog(
                         onNext = { focusManager.clearFocus() }
                     )
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = shortcutPrompt,
@@ -77,8 +75,6 @@ fun EditShortcutDialog(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -88,7 +84,7 @@ fun EditShortcutDialog(
                         onCheckedChange = { useChatGPT = it }
                     )
                     Text(
-                        text = "Open ChatGPT App (uncheck to use API)",
+                        text = "Open ChatGPT App",
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(start = 8.dp)
                     )

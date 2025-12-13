@@ -114,9 +114,9 @@ fun ChooseAppsDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(500.dp)
+                    .height(500.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Search bar
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -135,13 +135,11 @@ fun ChooseAppsDialog(
                     )
                 )
 
-                // App list with checkboxes
                 if (isLoading) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .fillMaxHeight()
-                            .padding(top = 16.dp),
+                            .fillMaxHeight(),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -150,8 +148,8 @@ fun ChooseAppsDialog(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .fillMaxHeight()
-                            .padding(top = 16.dp)
+                            .fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(filteredApps) { app ->
                             Row(
@@ -165,7 +163,7 @@ fun ChooseAppsDialog(
                                             checkedApps + app.packageName
                                         }
                                     }
-                                    .padding(vertical = 4.dp),
+                                    .padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
