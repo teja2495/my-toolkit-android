@@ -29,7 +29,8 @@ import com.tk.myapp.ui.components.RewritelyCard
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    onNavigateToApiKeys: () -> Unit
+    onNavigateToApiKeys: () -> Unit,
+    onNavigateToPermissions: () -> Unit
 ) {
     val context = LocalContext.current
     val secureStorage = remember { SecureStorage(context) }
@@ -58,6 +59,30 @@ fun MainScreen(
                     secureStorage.addShortcut(shortcut)
                 }
             )
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .clickable { onNavigateToPermissions() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Permissions",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.ArrowForward,
+                        contentDescription = "Navigate"
+                    )
+                }
+            }
 
             Card(
                 modifier = Modifier

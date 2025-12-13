@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.tk.myapp.ui.screens.ApiKeysScreen
 import com.tk.myapp.ui.screens.MainScreen
+import com.tk.myapp.ui.screens.PermissionsScreen
 import com.tk.myapp.ui.theme.MyAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -21,11 +22,15 @@ class MainActivity : ComponentActivity() {
                 NavHost(navController = navController, startDestination = "main") {
                     composable("main") {
                         MainScreen(
-                            onNavigateToApiKeys = { navController.navigate("api_keys") }
+                            onNavigateToApiKeys = { navController.navigate("api_keys") },
+                            onNavigateToPermissions = { navController.navigate("permissions") }
                         )
                     }
                     composable("api_keys") {
                         ApiKeysScreen()
+                    }
+                    composable("permissions") {
+                        PermissionsScreen()
                     }
                 }
             }
