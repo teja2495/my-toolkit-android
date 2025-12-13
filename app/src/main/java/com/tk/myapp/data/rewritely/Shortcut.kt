@@ -1,4 +1,4 @@
-package com.tk.myapp.data
+package com.tk.myapp.data.rewritely
 
 data class Shortcut(
     val name: String,

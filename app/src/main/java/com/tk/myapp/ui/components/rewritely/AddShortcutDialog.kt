@@ -1,4 +1,4 @@
-package com.tk.myapp.ui.components
+package com.tk.myapp.ui.components.rewritely
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

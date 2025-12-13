@@ -22,9 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.tk.myapp.data.Storage
-import com.tk.myapp.data.Shortcut
-import com.tk.myapp.ui.components.RewritelyCard
+import com.tk.myapp.data.common.Storage
+import com.tk.myapp.data.rewritely.Shortcut
+import com.tk.myapp.ui.components.rewritely.RewritelyCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

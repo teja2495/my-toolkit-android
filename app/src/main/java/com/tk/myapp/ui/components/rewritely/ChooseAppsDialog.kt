@@ -1,4 +1,4 @@
-package com.tk.myapp.ui.components
+package com.tk.myapp.ui.components.rewritely
 
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -38,7 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.tk.myapp.data.AppInfo
+import com.tk.myapp.data.rewritely.AppInfo
 
 @Composable
 fun ChooseAppsDialog(

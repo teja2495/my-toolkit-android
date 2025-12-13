@@ -1,9 +1,11 @@
-package com.tk.myapp.data
+package com.tk.myapp.data.common
 
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.tk.myapp.data.rewritely.AppInfo
+import com.tk.myapp.data.rewritely.Shortcut
 import org.json.JSONArray
 import org.json.JSONObject
 

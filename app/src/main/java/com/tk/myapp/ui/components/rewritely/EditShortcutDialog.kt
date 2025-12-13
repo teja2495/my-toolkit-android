@@ -1,4 +1,4 @@
-package com.tk.myapp.ui.components
+package com.tk.myapp.ui.components.rewritely
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.tk.myapp.data.Shortcut
+import com.tk.myapp.data.rewritely.Shortcut
 
 @Composable
 fun EditShortcutDialog(

@@ -17,8 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.tk.myapp.data.Storage
-import com.tk.myapp.ui.components.ApiKeyCard
+import com.tk.myapp.data.common.Storage
+import com.tk.myapp.ui.components.common.ApiKeyCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -1,4 +1,4 @@
-package com.tk.myapp.ui.components
+package com.tk.myapp.ui.components.common
 
 import android.content.ClipboardManager
 import android.content.Context

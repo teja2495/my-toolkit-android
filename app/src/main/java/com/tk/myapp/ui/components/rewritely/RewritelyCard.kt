@@ -1,4 +1,4 @@
-package com.tk.myapp.ui.components
+package com.tk.myapp.ui.components.rewritely
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,9 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.tk.myapp.data.AppInfo
-import com.tk.myapp.data.Storage
-import com.tk.myapp.data.Shortcut
+import com.tk.myapp.data.common.Storage
+import com.tk.myapp.data.rewritely.AppInfo
+import com.tk.myapp.data.rewritely.Shortcut
 
 @Composable
 fun RewritelyCard(
