@@ -22,7 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.tk.myapp.data.SecureStorage
+import com.tk.myapp.data.Storage
 import com.tk.myapp.data.Shortcut
 import com.tk.myapp.ui.components.RewritelyCard
 
@@ -33,7 +33,7 @@ fun MainScreen(
     onNavigateToPermissions: () -> Unit
 ) {
     val context = LocalContext.current
-    val secureStorage = remember { SecureStorage(context) }
+    val secureStorage = remember { Storage(context) }
 
     Scaffold(
         topBar = {

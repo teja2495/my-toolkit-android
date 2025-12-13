@@ -17,17 +17,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.tk.myapp.data.SecureStorage
+import com.tk.myapp.data.Storage
 import com.tk.myapp.ui.components.ApiKeyCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApiKeysScreen() {
     val context = LocalContext.current
-    val secureStorage = remember { SecureStorage(context) }
+    val secureStorage = remember { Storage(context) }
     
-    var geminiKey by remember { mutableStateOf(secureStorage.getApiKey(SecureStorage.KEY_GEMINI_API_KEY)) }
-    var openaiKey by remember { mutableStateOf(secureStorage.getApiKey(SecureStorage.KEY_OPENAI_API_KEY)) }
+    var geminiKey by remember { mutableStateOf(secureStorage.getApiKey(Storage.KEY_GEMINI_API_KEY)) }
+    var openaiKey by remember { mutableStateOf(secureStorage.getApiKey(Storage.KEY_OPENAI_API_KEY)) }
 
     Scaffold(
         topBar = {
@@ -47,11 +47,11 @@ fun ApiKeysScreen() {
                 title = "Gemini API Key",
                 savedApiKey = geminiKey,
                 onSave = { apiKey ->
-                    secureStorage.saveApiKey(SecureStorage.KEY_GEMINI_API_KEY, apiKey)
+                    secureStorage.saveApiKey(Storage.KEY_GEMINI_API_KEY, apiKey)
                     geminiKey = apiKey
                 },
                 onReset = {
-                    secureStorage.clearApiKey(SecureStorage.KEY_GEMINI_API_KEY)
+                    secureStorage.clearApiKey(Storage.KEY_GEMINI_API_KEY)
                     geminiKey = null
                 }
             )
@@ -60,11 +60,11 @@ fun ApiKeysScreen() {
                 title = "OpenAI API Key",
                 savedApiKey = openaiKey,
                 onSave = { apiKey ->
-                    secureStorage.saveApiKey(SecureStorage.KEY_OPENAI_API_KEY, apiKey)
+                    secureStorage.saveApiKey(Storage.KEY_OPENAI_API_KEY, apiKey)
                     openaiKey = apiKey
                 },
                 onReset = {
-                    secureStorage.clearApiKey(SecureStorage.KEY_OPENAI_API_KEY)
+                    secureStorage.clearApiKey(Storage.KEY_OPENAI_API_KEY)
                     openaiKey = null
                 }
             )

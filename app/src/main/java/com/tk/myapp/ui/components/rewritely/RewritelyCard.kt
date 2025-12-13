@@ -32,12 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.tk.myapp.data.AppInfo
-import com.tk.myapp.data.SecureStorage
+import com.tk.myapp.data.Storage
 import com.tk.myapp.data.Shortcut
 
 @Composable
 fun RewritelyCard(
-    secureStorage: SecureStorage,
+    secureStorage: Storage,
     onShortcutAdded: (String, String, Boolean) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
