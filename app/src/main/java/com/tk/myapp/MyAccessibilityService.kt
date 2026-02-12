@@ -129,12 +129,10 @@ class MyAccessibilityService : AccessibilityService() {
         if (shortcuts.isEmpty()) return
         
         for (shortcut in shortcuts) {
-            // Detect shortcut pattern: "[shortcut] " (shortcut followed by space)
-            val pattern = Regex(Regex.escape(shortcut.name) + "\\s", RegexOption.IGNORE_CASE)
-            
+            val escapedName = Regex.escape(shortcut.name)
+            val pattern = Regex("(?:^|\\s)$escapedName(?:\\s|$)", RegexOption.IGNORE_CASE)
             if (pattern.containsMatchIn(currentText)) {
-                // Extract text after shortcut removal
-                val cleanedText = currentText.replaceFirst(pattern, "").trim()
+                val cleanedText = currentText.replaceFirst(pattern, " ").trim()
                 if (cleanedText.isBlank()) continue
                 
                 if (shortcut.useChatGPT) {

@@ -3,7 +3,6 @@ package com.tk.myapp.ui.screens
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.view.accessibility.AccessibilityManager
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -92,9 +91,8 @@ fun MainScreen(
         ) {
             if (!isAccessibilityEnabled) {
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigateToPermissions() },
+                    onClick = { onNavigateToPermissions() },
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(28.dp)
                 ) {
                     Row(
@@ -118,9 +116,8 @@ fun MainScreen(
             }
 
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onNavigateToApiKeys() },
+                onClick = { onNavigateToApiKeys() },
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(28.dp)
             ) {
                 Row(
