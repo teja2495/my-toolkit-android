@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,11 +50,14 @@ fun ApiKeyCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
     ) {
         Column(
             modifier = Modifier
-                .padding(24.dp)
+                .padding(horizontal = 20.dp, vertical = 20.dp)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
