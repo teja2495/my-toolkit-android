@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -53,7 +54,8 @@ import com.tk.myapp.ui.components.rewritely.RewritelyCard
 @Composable
 fun MainScreen(
     onNavigateToApiKeys: () -> Unit,
-    onNavigateToPermissions: () -> Unit
+    onNavigateToPermissions: () -> Unit,
+    onNavigateToPhoneIntegration: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -121,6 +123,14 @@ fun MainScreen(
                 accent = MaterialTheme.colorScheme.primaryContainer,
                 onAccent = MaterialTheme.colorScheme.onPrimaryContainer,
                 onClick = onNavigateToApiKeys
+            )
+
+            NavCard(
+                title = "Mac Integration",
+                icon = Icons.Outlined.PhoneAndroid,
+                accent = MaterialTheme.colorScheme.tertiaryContainer,
+                onAccent = MaterialTheme.colorScheme.onTertiaryContainer,
+                onClick = onNavigateToPhoneIntegration
             )
 
             RewritelyCard(

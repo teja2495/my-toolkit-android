@@ -13,6 +13,7 @@ import androidx.navigation.compose.rememberNavController
 import com.tk.myapp.ui.screens.ApiKeysScreen
 import com.tk.myapp.ui.screens.MainScreen
 import com.tk.myapp.ui.screens.PermissionsScreen
+import com.tk.myapp.ui.screens.PhoneIntegrationScreen
 import com.tk.myapp.ui.theme.MyAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -53,7 +54,8 @@ class MainActivity : ComponentActivity() {
                     composable("main") {
                         MainScreen(
                             onNavigateToApiKeys = { navController.navigate("api_keys") },
-                            onNavigateToPermissions = { navController.navigate("permissions") }
+                            onNavigateToPermissions = { navController.navigate("permissions") },
+                            onNavigateToPhoneIntegration = { navController.navigate("phone_integration") }
                         )
                     }
                     composable("api_keys") {
@@ -61,6 +63,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("permissions") {
                         PermissionsScreen()
+                    }
+                    composable("phone_integration") {
+                        PhoneIntegrationScreen(onBack = { navController.popBackStack() })
                     }
                 }
             }
