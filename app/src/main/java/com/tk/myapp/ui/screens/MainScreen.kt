@@ -30,9 +30,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.tk.myapp.R
 import com.tk.myapp.data.common.Storage
 import com.tk.myapp.data.rewritely.Shortcut
 import com.tk.myapp.ui.components.rewritely.RewritelyCard
@@ -78,7 +80,7 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My App") }
+                title = { Text(stringResource(R.string.app_name)) }
             )
         }
     ) { innerPadding ->

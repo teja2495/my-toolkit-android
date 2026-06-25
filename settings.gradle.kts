@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "My App"
+rootProject.name = "Toolkit"
 include(":app")
