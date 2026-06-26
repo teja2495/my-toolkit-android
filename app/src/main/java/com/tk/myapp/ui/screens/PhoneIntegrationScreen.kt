@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -63,6 +64,7 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
     val controller = remember { PhoneIntegrationController.getInstance(context) }
     val uiState by controller.uiState.collectAsState()
     var hasFileAccess by remember { mutableStateOf(hasRequiredFileAccess(context)) }
+    var ignoresBatteryOptimizations by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
@@ -70,14 +72,15 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        controller.start()
         hasFileAccess = hasRequiredFileAccess(context)
+        ignoresBatteryOptimizations = isIgnoringBatteryOptimizations(context)
     }
 
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasFileAccess = hasRequiredFileAccess(context)
+                ignoresBatteryOptimizations = isIgnoringBatteryOptimizations(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -149,25 +152,44 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
                 }
             }
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+            if (!ignoresBatteryOptimizations) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
                 ) {
-                    Text("File Access", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (hasFileAccess) {
-                            "File access is granted. Your Mac can browse shared files after pairing."
-                        } else {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Background Reliability", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Disable battery optimization for Toolkit if you want the phone bridge to stay reachable while the app is backgrounded or the screen is off.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(onClick = { openBatteryOptimizationSettings(context) }) {
+                            Text("Allow Background Running")
+                        }
+                    }
+                }
+            }
+
+            if (!hasFileAccess) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("File Access", style = MaterialTheme.typography.titleMedium)
+                        Text(
                             "Grant file access so your paired Mac can browse files stored on this Android device."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (!hasFileAccess) {
+                            ,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                             OutlinedButton(onClick = { openAllFilesAccessSettings(context) }) {
                                 Text("Grant File Access")
@@ -249,13 +271,6 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
                     }
                 }
             }
-
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "File browsing is enabled only after secure pairing. The bridge uses local discovery, P-256 key agreement, a matching approval code, and AES-GCM encrypted messages.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -294,6 +309,11 @@ private fun hasRequiredFileAccess(context: Context): Boolean {
     }
 }
 
+private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
+
 private fun openAllFilesAccessSettings(context: Context) {
     val intent = Intent(
         Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
@@ -303,5 +323,17 @@ private fun openAllFilesAccessSettings(context: Context) {
         context.startActivity(intent)
     }.getOrElse {
         context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+    }
+}
+
+private fun openBatteryOptimizationSettings(context: Context) {
+    val intent = Intent(
+        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+        Uri.parse("package:${context.packageName}")
+    )
+    runCatching {
+        context.startActivity(intent)
+    }.getOrElse {
+        context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
     }
 }

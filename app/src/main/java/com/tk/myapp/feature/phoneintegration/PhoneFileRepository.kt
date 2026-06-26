@@ -3,16 +3,26 @@ package com.tk.myapp.feature.phoneintegration
 import android.Manifest
 import android.content.ContentResolver
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
+import android.database.Cursor
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.database.Cursor
-import android.net.Uri
-import android.util.Log
 import android.provider.MediaStore
+import android.provider.OpenableColumns
+import android.util.Base64
+import android.util.Log
+import android.util.Size
 import androidx.core.content.ContextCompat
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.InputStream
 
 class PhoneFileRepository(private val context: Context) {
     fun hasRequiredPermissions(): Boolean {
@@ -94,9 +104,78 @@ class PhoneFileRepository(private val context: Context) {
         )
         if (files.isNotEmpty()) {
             val sample = files.take(3).joinToString { it.displayName }
-            Log.d(TAG, "listFiles sample=${sample}")
+            Log.d(TAG, "listFiles sample=$sample")
         }
         return files
+    }
+
+    fun openFileStream(documentUri: String): InputStream? {
+        val uri = runCatching { Uri.parse(documentUri) }.getOrNull() ?: return null
+        return context.contentResolver.openInputStream(uri)
+    }
+
+    fun prepareSharedFile(uri: Uri): SharedPhoneFile? {
+        val resolver = context.contentResolver
+        val mimeType = resolver.getType(uri).orEmpty().ifBlank { "application/octet-stream" }
+        val metadata = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+            ?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                Pair(
+                    if (nameIndex >= 0) cursor.getString(nameIndex) else null,
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else null
+                )
+            }
+        val filename = sanitizeFilename(metadata?.first ?: uri.lastPathSegment ?: "Shared File")
+        return SharedPhoneFile(
+            uri = uri,
+            filename = filename,
+            mimeType = mimeType,
+            sizeBytes = metadata?.second
+        )
+    }
+
+    fun openSharedFileInputStream(uri: Uri): InputStream? {
+        return context.contentResolver.openInputStream(uri)
+    }
+
+    fun createIncomingShareTempFile(requestId: String): File {
+        val directory = File(context.cacheDir, "incoming-phone-shares")
+        if (!directory.exists()) {
+            directory.mkdirs()
+        }
+        return File(directory, requestId)
+    }
+
+    fun saveIncomingSharedFile(filename: String, mimeType: String, sourceFile: File): Uri {
+        val resolver = context.contentResolver
+        val safeFilename = sanitizeFilename(filename)
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, safeFilename)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType.ifBlank { "application/octet-stream" })
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val destinationUri = resolver.insert(collection, values)
+            ?: error("Unable to create the Downloads file.")
+
+        runCatching {
+            resolver.openOutputStream(destinationUri)?.use { output ->
+                sourceFile.inputStream().use { input ->
+                    input.copyTo(output)
+                }
+            } ?: error("Unable to open the Downloads destination.")
+            values.clear()
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            resolver.update(destinationUri, values, null, null)
+        }.onFailure { error ->
+            runCatching { resolver.delete(destinationUri, null, null) }
+            throw error
+        }
+
+        return destinationUri
     }
 
     private fun ContentResolver.queryFiles(
@@ -139,20 +218,117 @@ class PhoneFileRepository(private val context: Context) {
         while (moveToNext()) {
             val id = getLong(idColumn)
             val uri = ContentUris.withAppendedId(collection, id)
+            val mimeType = getString(mimeColumn).orEmpty()
             files += PhoneFileMetadata(
                 id = id.toString(),
                 displayName = getString(nameColumn).orEmpty(),
                 documentUri = uri.toString(),
                 sizeBytes = getLong(sizeColumn),
                 modifiedAtMillis = getLong(modifiedColumn) * 1000,
-                mimeType = getString(mimeColumn).orEmpty(),
-                thumbnailBase64 = null
+                mimeType = mimeType,
+                thumbnailBase64 = makeThumbnailBase64(uri, mimeType)
             )
         }
         return files
     }
 
+    private fun makeThumbnailBase64(uri: Uri, mimeType: String): String? {
+        if (!mimeType.startsWith("image/") && !mimeType.startsWith("video/")) {
+            return null
+        }
+
+        val bitmap = runCatching {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                    context.contentResolver.loadThumbnail(uri, THUMBNAIL_SIZE, null)
+                mimeType.startsWith("image/") -> decodeImageThumbnail(uri)
+                mimeType.startsWith("video/") -> decodeVideoThumbnail(uri)
+                else -> null
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "Thumbnail generation failed for uri=$uri mimeType=$mimeType", error)
+        }.getOrNull() ?: return null
+
+        return bitmap.toBase64Jpeg()
+    }
+
+    private fun decodeImageThumbnail(uri: Uri): Bitmap? {
+        return context.contentResolver.openInputStream(uri)?.use { input ->
+            val bounds = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeStream(input, null, bounds)
+            val maxDimension = maxOf(bounds.outWidth, bounds.outHeight)
+            if (maxDimension <= 0) {
+                return null
+            }
+            val sampleSize = maxOf(1, Integer.highestOneBit(maxDimension / LEGACY_THUMBNAIL_PX))
+            context.contentResolver.openInputStream(uri)?.use { secondInput ->
+                BitmapFactory.decodeStream(
+                    secondInput,
+                    null,
+                    BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                    }
+                )
+            }
+        }
+    }
+
+    private fun decodeVideoThumbnail(uri: Uri): Bitmap? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, uri)
+            retriever.frameAtTime?.scaledThumbnail()
+        } catch (error: Throwable) {
+            Log.w(TAG, "Video thumbnail extraction failed for uri=$uri", error)
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    private fun Bitmap.scaledThumbnail(): Bitmap {
+        val width = width.coerceAtLeast(1)
+        val height = height.coerceAtLeast(1)
+        val largestSide = maxOf(width, height)
+        if (largestSide <= TARGET_THUMBNAIL_PX) {
+            return this
+        }
+        val scale = TARGET_THUMBNAIL_PX.toFloat() / largestSide.toFloat()
+        val targetWidth = (width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(this, targetWidth, targetHeight, true)
+    }
+
+    private fun Bitmap.toBase64Jpeg(): String? {
+        val scaled = scaledThumbnail()
+        return ByteArrayOutputStream().use { output ->
+            if (!scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)) {
+                return null
+            }
+            Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+        }
+    }
+
+    private fun sanitizeFilename(filename: String): String {
+        val trimmed = filename.trim()
+        val fallback = if (trimmed.isEmpty()) "Shared File" else trimmed
+        return fallback.replace(Regex("[\\\\/:]"), "-")
+    }
+
     companion object {
         private const val TAG = "PhoneFileRepository"
+        private val THUMBNAIL_SIZE = Size(TARGET_THUMBNAIL_PX, TARGET_THUMBNAIL_PX)
+        private const val TARGET_THUMBNAIL_PX = 300
+        private const val LEGACY_THUMBNAIL_PX = 300
+        private const val JPEG_QUALITY = 76
     }
 }
+
+data class SharedPhoneFile(
+    val uri: Uri,
+    val filename: String,
+    val mimeType: String,
+    val sizeBytes: Long?
+)

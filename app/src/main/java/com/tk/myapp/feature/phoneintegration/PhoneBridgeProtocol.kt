@@ -13,4 +13,8 @@ object PhoneBridgeProtocol {
 
     const val typeListFiles = "files.list"
     const val typeListFilesResult = "files.list.result"
+    const val typeReadFile = "file.read"
+    const val typeReadFileResult = "file.read.result"
+    const val typeShareFileChunk = "file.share.chunk"
+    const val typeShareFileResult = "file.share.result"
 }

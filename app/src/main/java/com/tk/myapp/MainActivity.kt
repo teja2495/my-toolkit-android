@@ -1,5 +1,6 @@
 package com.tk.myapp
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,6 +11,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.tk.myapp.feature.phoneintegration.PhoneIntegrationController
 import com.tk.myapp.ui.screens.ApiKeysScreen
 import com.tk.myapp.ui.screens.MainScreen
 import com.tk.myapp.ui.screens.PermissionsScreen
@@ -19,6 +21,7 @@ import com.tk.myapp.ui.theme.MyAppTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleShareIntent(intent)
         enableEdgeToEdge()
         setContent {
             MyAppTheme {
@@ -70,5 +73,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShareIntent(intent)
+    }
+
+    private fun handleShareIntent(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action != Intent.ACTION_SEND && action != Intent.ACTION_SEND_MULTIPLE) {
+            return
+        }
+        val controller = PhoneIntegrationController.getInstance(this)
+        controller.start()
+        controller.handleShareIntent(intent)
     }
 }
