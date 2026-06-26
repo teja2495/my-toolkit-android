@@ -42,6 +42,15 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".feature.phoneintegration.PhoneShareActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.MyApp.NoDisplay">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -53,6 +62,14 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".feature.phoneintegration.PhoneClipboardSendActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.MyApp.ClipboardSend" />
 
         <service
             android:name=".MyAccessibilityService"
@@ -79,6 +96,17 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Maintains a local encrypted bridge for paired Toolkit desktop devices." />
+        </service>
+
+        <service
+            android:name=".feature.phoneintegration.PhoneClipboardTileService"
+            android:label="@string/phone_clipboard_tile_label"
+            android:icon="@drawable/ic_qs_clipboard_send"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
         </service>
     </application>
 

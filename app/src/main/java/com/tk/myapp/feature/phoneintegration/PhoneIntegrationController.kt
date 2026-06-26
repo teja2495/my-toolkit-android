@@ -2,17 +2,23 @@ package com.tk.myapp.feature.phoneintegration
 
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.net.Uri
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -33,14 +39,19 @@ class PhoneIntegrationController private constructor(context: Context) {
     private val store = PhoneIntegrationStore(appContext)
     private val crypto = PhoneBridgeCrypto()
     private val fileRepository = PhoneFileRepository(appContext)
+    private val clipboardManager = appContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     private val nsdManager = appContext.getSystemService(Context.NSD_SERVICE) as NsdManager
     private val deviceId = store.getDeviceId()
     private val deviceName = "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}"
     private val pendingConnections = ConcurrentHashMap<String, PendingConnection>()
     private val activeConnections = ConcurrentHashMap<String, PendingConnection>()
-    private val queuedOutgoingShares = mutableListOf<SharedPhoneFile>()
+    private val queuedOutgoingShares = mutableListOf<QueuedOutgoingShare>()
     private val activeOutgoingShareRequestIds = mutableSetOf<String>()
+    private val backgroundOutgoingShareRequestIds = ConcurrentHashMap<String, String>()
     private val activeIncomingShareTransfers = ConcurrentHashMap<String, IncomingShareTransfer>()
+    private val activeOutgoingClipboardRequestIds = mutableSetOf<String>()
+    private val outgoingClipboardToastRequests = ConcurrentHashMap<String, Boolean>()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var serverSocket: ServerSocket? = null
     private var serverJob: Job? = null
@@ -61,7 +72,8 @@ class PhoneIntegrationController private constructor(context: Context) {
         _uiState.update {
             it.copy(
                 connectionState = PhoneBridgeConnectionState.Starting,
-                statusMessage = "Starting secure phone bridge"
+                statusMessage = "Starting secure phone bridge",
+                connectedPeerName = null
             )
         }
 
@@ -75,6 +87,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Listening,
                         statusMessage = "Discoverable on this Wi-Fi network",
+                        connectedPeerName = null,
                         trustedPeers = store.getTrustedPeers()
                     )
                 }
@@ -88,7 +101,8 @@ class PhoneIntegrationController private constructor(context: Context) {
                 _uiState.update {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Error,
-                        statusMessage = error.message ?: "Phone bridge failed"
+                        statusMessage = error.message ?: "Phone bridge failed",
+                        connectedPeerName = null
                     )
                 }
             }
@@ -110,6 +124,8 @@ class PhoneIntegrationController private constructor(context: Context) {
         activeConnections.clear()
         queuedOutgoingShares.clear()
         activeOutgoingShareRequestIds.clear()
+        activeOutgoingClipboardRequestIds.clear()
+        outgoingClipboardToastRequests.clear()
         activeIncomingShareTransfers.values.forEach { transfer ->
             runCatching { transfer.close() }
             transfer.tempFile.delete()
@@ -119,6 +135,7 @@ class PhoneIntegrationController private constructor(context: Context) {
             it.copy(
                 connectionState = PhoneBridgeConnectionState.Stopped,
                 statusMessage = "Phone bridge is off",
+                connectedPeerName = null,
                 pendingPairing = null
             )
         }
@@ -138,6 +155,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Pairing,
                         statusMessage = "Waiting for ${pending.peerName} to approve",
+                        connectedPeerName = null,
                         pendingPairing = null
                     )
                 }
@@ -146,6 +164,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Error,
                         statusMessage = error.message ?: "Pairing approval failed",
+                        connectedPeerName = null,
                         pendingPairing = null
                     )
                 }
@@ -169,6 +188,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                 it.copy(
                     connectionState = PhoneBridgeConnectionState.Listening,
                     statusMessage = "Pairing rejected",
+                    connectedPeerName = null,
                     pendingPairing = null
                 )
             }
@@ -185,9 +205,89 @@ class PhoneIntegrationController private constructor(context: Context) {
         }
     }
 
-    fun handleShareIntent(intent: Intent) {
+    fun sendCurrentClipboardToMac(showToast: Boolean = false) {
+        val connection = activeConnections.values.firstOrNull()
+        if (connection == null) {
+            val message = "Connect Toolkit on your Mac before sending clipboard."
+            if (showToast) {
+                showToast(message)
+            }
+            _uiState.update {
+                it.copy(statusMessage = message)
+            }
+            return
+        }
+
+        val clipboardText = clipboardManager.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(appContext)
+            ?.toString()
+
+        if (clipboardText.isNullOrEmpty()) {
+            val message = "Copy text on Android before sending clipboard."
+            if (showToast) {
+                showToast(message)
+            }
+            _uiState.update {
+                it.copy(statusMessage = message)
+            }
+            return
+        }
+
+        scope.launch {
+            val requestId = "${connection.peerId}-${System.currentTimeMillis()}-clipboard"
+            runCatching {
+                activeOutgoingClipboardRequestIds += requestId
+                outgoingClipboardToastRequests[requestId] = showToast
+                connection.sendEncrypted(
+                    JSONObject()
+                        .put("type", PhoneBridgeProtocol.typeSetClipboard)
+                        .put("requestId", requestId)
+                        .put("text", clipboardText)
+                )
+                val message = "Sending clipboard to ${connection.peerName}..."
+                if (showToast) {
+                    showToast(message)
+                }
+                _uiState.update {
+                    it.copy(statusMessage = message)
+                }
+                launch {
+                    delay(3000)
+                    if (activeOutgoingClipboardRequestIds.remove(requestId)) {
+                        outgoingClipboardToastRequests.remove(requestId)
+                        val timeoutMessage = "Mac did not confirm the clipboard update."
+                        if (showToast) {
+                            showToast(timeoutMessage)
+                        }
+                        _uiState.update {
+                            it.copy(statusMessage = timeoutMessage)
+                        }
+                    }
+                }
+            }.onFailure { error ->
+                activeOutgoingClipboardRequestIds.remove(requestId)
+                outgoingClipboardToastRequests.remove(requestId)
+                Log.e(TAG, "Failed to send clipboard to peerId=${connection.peerId}", error)
+                val message = error.message ?: "Toolkit could not send the clipboard."
+                if (showToast) {
+                    showToast(message)
+                }
+                _uiState.update {
+                    it.copy(statusMessage = message)
+                }
+            }
+        }
+    }
+
+    fun handleShareIntent(
+        intent: Intent,
+        mode: ShareHandlingMode = ShareHandlingMode.Foreground
+    ) {
         val uris = extractShareUris(intent)
         if (uris.isEmpty()) {
+            notifyShareFailure("No file was attached to share to Toolkit.", mode)
             _uiState.update {
                 it.copy(statusMessage = "No file was attached to share to Toolkit.")
             }
@@ -195,13 +295,27 @@ class PhoneIntegrationController private constructor(context: Context) {
         }
         val preparedFiles = uris.mapNotNull { uri -> fileRepository.prepareSharedFile(uri) }
         if (preparedFiles.isEmpty()) {
+            notifyShareFailure("Toolkit could not open the shared file.", mode)
             _uiState.update {
                 it.copy(statusMessage = "Toolkit could not open the shared file.")
             }
             return
         }
+        if (mode == ShareHandlingMode.Background && activeConnections.isEmpty()) {
+            val message = "Connect Toolkit on your Mac before sharing files."
+            notifyShareFailure(message, mode)
+            _uiState.update {
+                it.copy(statusMessage = message)
+            }
+            return
+        }
         synchronized(queuedOutgoingShares) {
-            queuedOutgoingShares += preparedFiles
+            queuedOutgoingShares += preparedFiles.map { file ->
+                QueuedOutgoingShare(
+                    file = file,
+                    mode = mode
+                )
+            }
         }
         _uiState.update {
             it.copy(
@@ -273,6 +387,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Pairing,
                         statusMessage = "Waiting for $peerName to approve",
+                        connectedPeerName = null,
                         pendingPairing = null
                     )
                 }
@@ -281,6 +396,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Pairing,
                         statusMessage = "Confirm pairing code on both devices",
+                        connectedPeerName = null,
                         pendingPairing = PendingPairingRequest(
                             requestId = requestId,
                             peerId = peerId,
@@ -306,6 +422,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Listening,
                         statusMessage = "$peerName rejected pairing",
+                        connectedPeerName = null,
                         pendingPairing = null
                     )
                 }
@@ -342,6 +459,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                 it.copy(
                     connectionState = PhoneBridgeConnectionState.Connected,
                     statusMessage = "Paired with ${pending.peerName}",
+                    connectedPeerName = pending.peerName,
                     pendingPairing = null,
                     trustedPeers = store.getTrustedPeers()
                 )
@@ -357,6 +475,8 @@ class PhoneIntegrationController private constructor(context: Context) {
                     PhoneBridgeProtocol.typeReadFile -> handleReadFile(message, pending)
                     PhoneBridgeProtocol.typeShareFileChunk -> handleIncomingShareChunk(message, pending)
                     PhoneBridgeProtocol.typeShareFileResult -> handleOutgoingShareResult(message, pending)
+                    PhoneBridgeProtocol.typeSetClipboard -> handleSetClipboard(message, pending)
+                    PhoneBridgeProtocol.typeSetClipboardResult -> handleSetClipboardResult(message, pending)
                     PhoneBridgeProtocol.typeError -> handleShareError(message)
                 }
             }
@@ -374,6 +494,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     it.copy(
                         connectionState = PhoneBridgeConnectionState.Listening,
                         statusMessage = error.message ?: "Connection closed",
+                        connectedPeerName = null,
                         pendingPairing = null,
                         trustedPeers = store.getTrustedPeers()
                     )
@@ -542,6 +663,63 @@ class PhoneIntegrationController private constructor(context: Context) {
         }
     }
 
+    private fun handleSetClipboard(message: JSONObject, pending: PendingConnection) {
+        val requestId = message.optString("requestId")
+        val text = message.optString("text")
+        if (text.isEmpty()) {
+            scope.launch {
+                pending.sendEncrypted(
+                    JSONObject()
+                        .put("type", PhoneBridgeProtocol.typeError)
+                        .put("message", "Toolkit received an invalid clipboard payload.")
+                )
+            }
+            return
+        }
+
+        mainHandler.post {
+            clipboardManager.setPrimaryClip(ClipData.newPlainText("Toolkit Mac Clipboard", text))
+            _uiState.update {
+                it.copy(statusMessage = "Updated Android clipboard from ${pending.peerName}")
+            }
+            scope.launch {
+                pending.sendEncrypted(
+                    JSONObject()
+                        .put("type", PhoneBridgeProtocol.typeSetClipboardResult)
+                        .put("requestId", requestId)
+                        .put("success", true)
+                        .put("message", "Updated Android clipboard.")
+                )
+            }
+        }
+        Log.d(TAG, "Updated Android clipboard from peerId=${pending.peerId}")
+    }
+
+    private fun handleSetClipboardResult(message: JSONObject, pending: PendingConnection) {
+        val requestId = message.optString("requestId")
+        if (requestId.isBlank() || !activeOutgoingClipboardRequestIds.remove(requestId)) {
+            return
+        }
+        val shouldToast = outgoingClipboardToastRequests.remove(requestId) == true
+        val success = message.optBoolean("success", false)
+        val statusMessage = message.optString(
+            "message",
+            if (success) "Updated Mac clipboard." else "Toolkit could not update the Mac clipboard."
+        )
+        if (success) {
+            if (shouldToast) {
+                showToast("Sent Android clipboard to ${pending.peerName}")
+            }
+        } else {
+            if (shouldToast) {
+                showToast(statusMessage)
+            }
+        }
+        _uiState.update {
+            it.copy(statusMessage = statusMessage)
+        }
+    }
+
     private fun flushQueuedOutgoingShares() {
         val connection = activeConnections.values.firstOrNull()
         if (connection == null) {
@@ -559,11 +737,15 @@ class PhoneIntegrationController private constructor(context: Context) {
             queuedOutgoingShares.toList().also { queuedOutgoingShares.clear() }
         }
         scope.launch {
-            pendingFiles.forEach { file ->
+            pendingFiles.forEach { queuedShare ->
                 runCatching {
-                    sendSharedFile(file, connection)
+                    sendSharedFile(queuedShare, connection)
                 }.onFailure { error ->
-                    Log.e(TAG, "Failed to send shared file filename=${file.filename}", error)
+                    Log.e(TAG, "Failed to send shared file filename=${queuedShare.file.filename}", error)
+                    notifyShareFailure(
+                        error.message ?: "Toolkit could not send the shared file.",
+                        queuedShare.mode
+                    )
                     _uiState.update {
                         it.copy(statusMessage = error.message ?: "Toolkit could not send the shared file.")
                     }
@@ -572,36 +754,47 @@ class PhoneIntegrationController private constructor(context: Context) {
         }
     }
 
-    private fun sendSharedFile(file: SharedPhoneFile, pending: PendingConnection) {
+    private fun sendSharedFile(queuedShare: QueuedOutgoingShare, pending: PendingConnection) {
+        val file = queuedShare.file
         val requestId = "${pending.peerId}-${System.currentTimeMillis()}-${file.filename.hashCode()}"
         activeOutgoingShareRequestIds += requestId
-        fileRepository.openSharedFileInputStream(file.uri)?.use { input ->
-            val buffer = ByteArray(FILE_CHUNK_SIZE_BYTES)
-            var chunkIndex = 0
-            while (true) {
-                val count = input.read(buffer)
-                val isLastChunk = count < 0 || count < buffer.size
-                val payload = if (count > 0) {
-                    buffer.copyOf(count)
-                } else {
-                    ByteArray(0)
+        if (queuedShare.mode == ShareHandlingMode.Background) {
+            backgroundOutgoingShareRequestIds[requestId] = file.filename
+        }
+        try {
+            fileRepository.openSharedFileInputStream(file.uri)?.use { input ->
+                val buffer = ByteArray(FILE_CHUNK_SIZE_BYTES)
+                var chunkIndex = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    val isLastChunk = count < 0 || count < buffer.size
+                    val payload = if (count > 0) {
+                        buffer.copyOf(count)
+                    } else {
+                        ByteArray(0)
+                    }
+                    pending.sendEncrypted(
+                        JSONObject()
+                            .put("type", PhoneBridgeProtocol.typeShareFileChunk)
+                            .put("requestId", requestId)
+                            .put("filename", file.filename)
+                            .put("mimeType", file.mimeType)
+                            .put("chunkIndex", chunkIndex)
+                            .put("isLastChunk", isLastChunk)
+                            .put("data", android.util.Base64.encodeToString(payload, android.util.Base64.NO_WRAP))
+                    )
+                    if (isLastChunk) {
+                        break
+                    }
+                    chunkIndex += 1
                 }
-                pending.sendEncrypted(
-                    JSONObject()
-                        .put("type", PhoneBridgeProtocol.typeShareFileChunk)
-                        .put("requestId", requestId)
-                        .put("filename", file.filename)
-                        .put("mimeType", file.mimeType)
-                        .put("chunkIndex", chunkIndex)
-                        .put("isLastChunk", isLastChunk)
-                        .put("data", android.util.Base64.encodeToString(payload, android.util.Base64.NO_WRAP))
-                )
-                if (isLastChunk) {
-                    break
-                }
-                chunkIndex += 1
             }
-        } ?: error("Toolkit could not open the shared file.")
+                ?: error("Toolkit could not open the shared file.")
+        } catch (error: Throwable) {
+            activeOutgoingShareRequestIds.remove(requestId)
+            backgroundOutgoingShareRequestIds.remove(requestId)
+            throw error
+        }
         _uiState.update {
             it.copy(statusMessage = "Sending ${file.filename} to ${pending.peerName}")
         }
@@ -614,10 +807,16 @@ class PhoneIntegrationController private constructor(context: Context) {
         }
         if (message.optBoolean("success", false)) {
             val savedFilename = message.optString("savedFilename").ifBlank { "the file" }
+            backgroundOutgoingShareRequestIds.remove(requestId)?.let {
+                showToast("Sent $savedFilename to your Mac")
+            }
             _uiState.update {
                 it.copy(statusMessage = "Saved $savedFilename to Mac Downloads and copied it to the clipboard")
             }
         } else {
+            backgroundOutgoingShareRequestIds.remove(requestId)?.let {
+                showToast(message.optString("message", "Toolkit on Mac could not save the shared file."))
+            }
             _uiState.update {
                 it.copy(statusMessage = message.optString("message", "Toolkit on Mac could not save the shared file."))
             }
@@ -628,9 +827,24 @@ class PhoneIntegrationController private constructor(context: Context) {
     private fun handleShareError(message: JSONObject) {
         val requestId = message.optString("requestId")
         if (requestId.isNotBlank() && activeOutgoingShareRequestIds.remove(requestId)) {
+            backgroundOutgoingShareRequestIds.remove(requestId)?.let {
+                showToast(message.optString("message", "Toolkit could not complete the shared file transfer."))
+            }
             _uiState.update {
                 it.copy(statusMessage = message.optString("message", "Toolkit could not complete the shared file transfer."))
             }
+        }
+    }
+
+    private fun notifyShareFailure(message: String, mode: ShareHandlingMode) {
+        if (mode == ShareHandlingMode.Background) {
+            showToast(message)
+        }
+    }
+
+    private fun showToast(message: String) {
+        mainHandler.post {
+            Toast.makeText(appContext, message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -742,6 +956,11 @@ class PhoneIntegrationController private constructor(context: Context) {
             output.close()
         }
     }
+
+    private data class QueuedOutgoingShare(
+        val file: SharedPhoneFile,
+        val mode: ShareHandlingMode
+    )
 
     companion object {
         private const val MAX_FRAME_SIZE = 2 * 1024 * 1024

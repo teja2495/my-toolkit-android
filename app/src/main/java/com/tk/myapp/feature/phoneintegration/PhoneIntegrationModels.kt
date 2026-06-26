@@ -30,9 +30,15 @@ data class PhoneBridgeUiState(
     val deviceId: String,
     val connectionState: PhoneBridgeConnectionState = PhoneBridgeConnectionState.Stopped,
     val statusMessage: String = "Phone bridge is off",
+    val connectedPeerName: String? = null,
     val pendingPairing: PendingPairingRequest? = null,
     val trustedPeers: List<TrustedPhonePeer> = emptyList()
 )
+
+enum class ShareHandlingMode {
+    Foreground,
+    Background
+}
 
 enum class PhoneFileCategory(val protocolValue: String) {
     PhotosVideos("photos_videos"),

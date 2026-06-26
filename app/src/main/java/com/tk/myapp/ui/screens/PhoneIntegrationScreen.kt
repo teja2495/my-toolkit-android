@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -120,18 +121,36 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(Icons.Outlined.PhoneAndroid, contentDescription = null)
-                        Column {
-                            Text(uiState.deviceName, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                uiState.statusMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (uiState.connectedPeerName != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.LaptopMac,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32)
                             )
+                            Text(
+                                "Connected to ${uiState.connectedPeerName}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Outlined.PhoneAndroid, contentDescription = null)
+                            Column {
+                                Text(uiState.deviceName, style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    uiState.statusMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -142,11 +161,13 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
                         ) {
                             Text(if (uiState.connectionState == PhoneBridgeConnectionState.Stopped) "Start Bridge" else "Restart Bridge")
                         }
-                        OutlinedButton(onClick = {
-                            context.stopService(Intent(context, PhoneIntegrationService::class.java))
-                            controller.stop()
-                        }) {
-                            Text("Stop")
+                        if (uiState.connectionState != PhoneBridgeConnectionState.Stopped) {
+                            OutlinedButton(onClick = {
+                                context.stopService(Intent(context, PhoneIntegrationService::class.java))
+                                controller.stop()
+                            }) {
+                                Text("Stop")
+                            }
                         }
                     }
                 }

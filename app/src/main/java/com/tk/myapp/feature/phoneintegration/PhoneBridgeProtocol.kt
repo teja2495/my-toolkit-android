@@ -17,4 +17,6 @@ object PhoneBridgeProtocol {
     const val typeReadFileResult = "file.read.result"
     const val typeShareFileChunk = "file.share.chunk"
     const val typeShareFileResult = "file.share.result"
+    const val typeSetClipboard = "clipboard.set"
+    const val typeSetClipboardResult = "clipboard.set.result"
 }

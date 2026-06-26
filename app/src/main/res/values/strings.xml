@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Toolkit</string>
     <string name="accessibility_service_description">Monitors text input in selected apps and triggers AI-powered text rewriting when shortcuts are detected. Requires accessibility permission to read and modify text in input fields.</string>
+    <string name="phone_clipboard_tile_label">Send</string>
 </resources>
