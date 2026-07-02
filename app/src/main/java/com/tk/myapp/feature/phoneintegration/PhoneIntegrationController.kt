@@ -28,6 +28,7 @@ import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.ByteBuffer
@@ -49,9 +50,11 @@ class PhoneIntegrationController private constructor(context: Context) {
     private val activeOutgoingShareRequestIds = mutableSetOf<String>()
     private val backgroundOutgoingShareRequestIds = ConcurrentHashMap<String, String>()
     private val activeIncomingShareTransfers = ConcurrentHashMap<String, IncomingShareTransfer>()
+    private val activeMacFileDownloads = ConcurrentHashMap<String, ActiveMacFileDownload>()
     private val activeOutgoingClipboardRequestIds = mutableSetOf<String>()
     private val outgoingClipboardToastRequests = ConcurrentHashMap<String, Boolean>()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val macFolderCache = ConcurrentHashMap<String, List<MacRemoteFileItem>>()
 
     private var serverSocket: ServerSocket? = null
     private var serverJob: Job? = null
@@ -131,12 +134,24 @@ class PhoneIntegrationController private constructor(context: Context) {
             transfer.tempFile.delete()
         }
         activeIncomingShareTransfers.clear()
+        activeMacFileDownloads.values.forEach { transfer ->
+            runCatching { transfer.output.close() }
+            transfer.tempFile.delete()
+        }
+        activeMacFileDownloads.clear()
+        macFolderCache.clear()
         _uiState.update {
             it.copy(
                 connectionState = PhoneBridgeConnectionState.Stopped,
                 statusMessage = "Phone bridge is off",
                 connectedPeerName = null,
-                pendingPairing = null
+                pendingPairing = null,
+                isLoadingMacFolder = false,
+                macFolderStatusMessage = "Connect Toolkit on your Mac to browse files.",
+                currentMacFolderCategory = null,
+                currentMacFolderTitle = "",
+                currentMacFolderDocumentUri = null,
+                currentMacFolderEntries = emptyList()
             )
         }
     }
@@ -201,6 +216,154 @@ class PhoneIntegrationController private constructor(context: Context) {
             it.copy(
                 trustedPeers = store.getTrustedPeers(),
                 statusMessage = "Removed paired device"
+            )
+        }
+    }
+
+    fun openMacFolder(
+        category: MacRemoteFileCategory,
+        documentUri: String? = null,
+        title: String = category.title,
+        forceRefresh: Boolean = false
+    ) {
+        val connection = activeConnections.values.firstOrNull()
+        if (connection == null) {
+            _uiState.update {
+                it.copy(
+                    isLoadingMacFolder = false,
+                    macFolderStatusMessage = "Connect Toolkit on your Mac to browse files.",
+                    currentMacFolderCategory = null,
+                    currentMacFolderTitle = "",
+                    currentMacFolderDocumentUri = null,
+                    currentMacFolderEntries = emptyList()
+                )
+            }
+            return
+        }
+
+        val cacheKey = macFolderCacheKey(category, documentUri)
+        val cachedEntries = if (forceRefresh) null else macFolderCache[cacheKey]
+        if (cachedEntries != null) {
+            _uiState.update {
+                it.copy(
+                    isLoadingMacFolder = false,
+                    macFolderStatusMessage = if (cachedEntries.isEmpty()) "No files found in $title." else "",
+                    currentMacFolderCategory = category,
+                    currentMacFolderTitle = title,
+                    currentMacFolderDocumentUri = documentUri,
+                    currentMacFolderEntries = cachedEntries
+                )
+            }
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isLoadingMacFolder = true,
+                macFolderStatusMessage = "Loading $title from ${connection.peerName}...",
+                currentMacFolderCategory = category,
+                currentMacFolderTitle = title,
+                currentMacFolderDocumentUri = documentUri,
+                currentMacFolderEntries = emptyList()
+            )
+        }
+        scope.launch {
+            runCatching {
+                connection.sendEncrypted(
+                    JSONObject()
+                        .put("type", PhoneBridgeProtocol.typeListFiles)
+                        .put("category", category.protocolValue)
+                        .put("pageSize", 200)
+                        .put("pageToken", 0)
+                        .apply {
+                            if (documentUri != null) {
+                                put("documentUri", documentUri)
+                            }
+                        }
+                )
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to request Mac folder category=${category.protocolValue}", error)
+                _uiState.update {
+                    it.copy(
+                        isLoadingMacFolder = false,
+                        macFolderStatusMessage = error.message ?: "Toolkit could not load files from your Mac."
+                    )
+                }
+            }
+        }
+    }
+
+    fun refreshMacFiles() {
+        val state = _uiState.value
+        val category = state.currentMacFolderCategory
+        if (category != null) {
+            openMacFolder(
+                category = category,
+                documentUri = state.currentMacFolderDocumentUri,
+                title = state.currentMacFolderTitle.ifBlank { category.title },
+                forceRefresh = true
+            )
+        }
+    }
+
+    /** Invalidates cached Mac folder listings; call when the app returns to the foreground. */
+    fun onAppForegrounded() {
+        macFolderCache.clear()
+        if (_uiState.value.currentMacFolderCategory != null) {
+            refreshMacFiles()
+        }
+    }
+
+    private fun macFolderCacheKey(category: MacRemoteFileCategory, documentUri: String?): String =
+        "${category.protocolValue}|${documentUri.orEmpty()}"
+
+    fun openMacFile(file: MacRemoteFileItem) {
+        val connection = activeConnections.values.firstOrNull()
+        if (connection == null) {
+            _uiState.update {
+                it.copy(statusMessage = "Connect Toolkit on your Mac before opening files.")
+            }
+            return
+        }
+
+        val requestId = "${connection.peerId}-${System.currentTimeMillis()}-${file.filename.hashCode()}"
+        val tempFile = fileRepository.createIncomingShareTempFile(requestId)
+        val output = FileOutputStream(tempFile)
+        activeMacFileDownloads[requestId] = ActiveMacFileDownload(
+            file = file,
+            tempFile = tempFile,
+            output = output
+        )
+        _uiState.update {
+            it.copy(statusMessage = "Opening ${file.filename} from ${connection.peerName}")
+        }
+        scope.launch {
+            runCatching {
+                connection.sendEncrypted(
+                    JSONObject()
+                        .put("type", PhoneBridgeProtocol.typeReadFile)
+                        .put("requestId", requestId)
+                        .put("documentUri", file.documentUri)
+                )
+            }.onFailure { error ->
+                Log.e(TAG, "Failed to request Mac file download requestId=$requestId", error)
+                finishMacFileDownload(
+                    requestId,
+                    error.message ?: "Toolkit could not download the Mac file."
+                )
+            }
+        }
+    }
+
+    fun clearMacFolderSelection() {
+        _uiState.update {
+            it.copy(
+                isLoadingMacFolder = false,
+                macFolderStatusMessage = "",
+                currentMacFolderCategory = null,
+                currentMacFolderTitle = "",
+                currentMacFolderDocumentUri = null,
+                currentMacFolderEntries = emptyList()
             )
         }
     }
@@ -472,7 +635,9 @@ class PhoneIntegrationController private constructor(context: Context) {
                 Log.d(TAG, "Received encrypted message type=$type peerId=${pending.peerId}")
                 when (type) {
                     PhoneBridgeProtocol.typeListFiles -> handleListFiles(message, pending)
+                    PhoneBridgeProtocol.typeListFilesResult -> handleMacListFilesResult(message)
                     PhoneBridgeProtocol.typeReadFile -> handleReadFile(message, pending)
+                    PhoneBridgeProtocol.typeReadFileResult -> handleMacReadFileResult(message)
                     PhoneBridgeProtocol.typeShareFileChunk -> handleIncomingShareChunk(message, pending)
                     PhoneBridgeProtocol.typeShareFileResult -> handleOutgoingShareResult(message, pending)
                     PhoneBridgeProtocol.typeSetClipboard -> handleSetClipboard(message, pending)
@@ -489,6 +654,11 @@ class PhoneIntegrationController private constructor(context: Context) {
             if (activePeerId != null) {
                 activeConnections.remove(activePeerId)
             }
+            activeMacFileDownloads.values.forEach { transfer ->
+                runCatching { transfer.output.close() }
+                transfer.tempFile.delete()
+            }
+            activeMacFileDownloads.clear()
             withContext(Dispatchers.Main.immediate) {
                 _uiState.update {
                     it.copy(
@@ -496,7 +666,13 @@ class PhoneIntegrationController private constructor(context: Context) {
                         statusMessage = error.message ?: "Connection closed",
                         connectedPeerName = null,
                         pendingPairing = null,
-                        trustedPeers = store.getTrustedPeers()
+                        trustedPeers = store.getTrustedPeers(),
+                        isLoadingMacFolder = false,
+                        macFolderStatusMessage = "Connect Toolkit on your Mac to browse files.",
+                        currentMacFolderCategory = null,
+                        currentMacFolderTitle = "",
+                        currentMacFolderDocumentUri = null,
+                        currentMacFolderEntries = emptyList()
                     )
                 }
             }
@@ -598,6 +774,78 @@ class PhoneIntegrationController private constructor(context: Context) {
                     .put("requestId", requestId)
                     .put("message", error.message ?: "Unable to open file from Android.")
             )
+        }
+    }
+
+    private fun handleMacListFilesResult(message: JSONObject) {
+        val category = MacRemoteFileCategory.fromProtocolValue(message.optString("category")) ?: return
+        val files = message.optJSONArray("files")
+        val parsedFiles = buildList {
+            if (files == null) return@buildList
+            for (index in 0 until files.length()) {
+                val item = files.optJSONObject(index) ?: continue
+                add(
+                    MacRemoteFileItem(
+                        id = item.optString("id"),
+                        filename = item.optString("filename"),
+                        documentUri = item.optString("documentUri"),
+                        sizeBytes = item.optLong("size"),
+                        modifiedAtMillis = item.optLong("modifiedDate"),
+                        mimeType = item.optString("mimeType").ifBlank { "application/octet-stream" },
+                        category = category,
+                        isDirectory = item.optBoolean("isDirectory", false),
+                        thumbnailBase64 = item.optString("thumbnail").ifBlank { null }
+                    )
+                )
+            }
+        }
+        macFolderCache[macFolderCacheKey(category, _uiState.value.currentMacFolderDocumentUri)] = parsedFiles
+        _uiState.update { state ->
+            state.copy(
+                isLoadingMacFolder = false,
+                macFolderStatusMessage = if (parsedFiles.isEmpty()) {
+                    "No files found in ${state.currentMacFolderTitle.ifBlank { category.title }}."
+                } else {
+                    ""
+                },
+                currentMacFolderCategory = category,
+                currentMacFolderEntries = parsedFiles
+            )
+        }
+    }
+
+    private fun handleMacReadFileResult(message: JSONObject) {
+        val requestId = message.optString("requestId")
+        val transfer = activeMacFileDownloads[requestId] ?: return
+        val chunkIndex = message.optInt("chunkIndex", -1)
+        val totalChunks = message.optInt("totalChunks", -1)
+        val data = message.optString("data")
+        if (chunkIndex != transfer.nextChunkIndex || totalChunks <= 0) {
+            finishMacFileDownload(requestId, "Toolkit received an invalid Mac file response.")
+            return
+        }
+
+        runCatching {
+            val decoded = android.util.Base64.decode(data, android.util.Base64.DEFAULT)
+            transfer.output.write(decoded)
+            transfer.nextChunkIndex += 1
+            if (transfer.nextChunkIndex == totalChunks) {
+                transfer.output.close()
+                val savedUri = fileRepository.saveDownloadedMacFile(
+                    filename = transfer.file.filename,
+                    mimeType = transfer.file.mimeType,
+                    sourceFile = transfer.tempFile
+                )
+                transfer.tempFile.delete()
+                activeMacFileDownloads.remove(requestId)
+                _uiState.update {
+                    it.copy(statusMessage = "Opened ${transfer.file.filename} from Android Downloads")
+                }
+                Log.d(TAG, "Saved Mac file requestId=$requestId uri=$savedUri")
+                openSavedMacFile(savedUri, transfer.file.mimeType)
+            }
+        }.onFailure { error ->
+            finishMacFileDownload(requestId, error.message ?: "Toolkit could not save the Mac file.")
         }
     }
 
@@ -826,6 +1074,13 @@ class PhoneIntegrationController private constructor(context: Context) {
 
     private fun handleShareError(message: JSONObject) {
         val requestId = message.optString("requestId")
+        if (requestId.isNotBlank() && activeMacFileDownloads.containsKey(requestId)) {
+            finishMacFileDownload(
+                requestId,
+                message.optString("message", "Toolkit could not download the Mac file.")
+            )
+            return
+        }
         if (requestId.isNotBlank() && activeOutgoingShareRequestIds.remove(requestId)) {
             backgroundOutgoingShareRequestIds.remove(requestId)?.let {
                 showToast(message.optString("message", "Toolkit could not complete the shared file transfer."))
@@ -833,6 +1088,16 @@ class PhoneIntegrationController private constructor(context: Context) {
             _uiState.update {
                 it.copy(statusMessage = message.optString("message", "Toolkit could not complete the shared file transfer."))
             }
+        }
+    }
+
+    private fun finishMacFileDownload(requestId: String, message: String) {
+        activeMacFileDownloads.remove(requestId)?.let { transfer ->
+            runCatching { transfer.output.close() }
+            transfer.tempFile.delete()
+        }
+        _uiState.update {
+            it.copy(statusMessage = message)
         }
     }
 
@@ -845,6 +1110,18 @@ class PhoneIntegrationController private constructor(context: Context) {
     private fun showToast(message: String) {
         mainHandler.post {
             Toast.makeText(appContext, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openSavedMacFile(uri: Uri, mimeType: String) {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mimeType.ifBlank { "*/*" })
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching {
+            appContext.startActivity(intent)
+        }.onFailure {
+            showToast("No app found to open this file.")
         }
     }
 
@@ -937,6 +1214,13 @@ class PhoneIntegrationController private constructor(context: Context) {
             runCatching { socket.close() }
         }
     }
+
+    private class ActiveMacFileDownload(
+        val file: MacRemoteFileItem,
+        val tempFile: File,
+        val output: FileOutputStream,
+        var nextChunkIndex: Int = 0
+    )
 
     private class IncomingShareTransfer(
         val requestId: String,

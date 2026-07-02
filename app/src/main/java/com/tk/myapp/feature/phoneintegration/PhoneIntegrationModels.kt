@@ -32,7 +32,13 @@ data class PhoneBridgeUiState(
     val statusMessage: String = "Phone bridge is off",
     val connectedPeerName: String? = null,
     val pendingPairing: PendingPairingRequest? = null,
-    val trustedPeers: List<TrustedPhonePeer> = emptyList()
+    val trustedPeers: List<TrustedPhonePeer> = emptyList(),
+    val isLoadingMacFolder: Boolean = false,
+    val macFolderStatusMessage: String = "Connect Toolkit on your Mac to browse files.",
+    val currentMacFolderCategory: MacRemoteFileCategory? = null,
+    val currentMacFolderTitle: String = "",
+    val currentMacFolderDocumentUri: String? = null,
+    val currentMacFolderEntries: List<MacRemoteFileItem> = emptyList()
 )
 
 enum class ShareHandlingMode {
@@ -55,4 +61,28 @@ data class PhoneFileMetadata(
     val modifiedAtMillis: Long,
     val mimeType: String,
     val thumbnailBase64: String?
+)
+
+enum class MacRemoteFileCategory(val protocolValue: String, val title: String) {
+    Desktop("mac_desktop", "Desktop"),
+    Downloads("mac_downloads", "Downloads");
+
+    companion object {
+        val allCases: List<MacRemoteFileCategory> = listOf(Desktop, Downloads)
+
+        fun fromProtocolValue(value: String): MacRemoteFileCategory? =
+            allCases.firstOrNull { it.protocolValue == value }
+    }
+}
+
+data class MacRemoteFileItem(
+    val id: String,
+    val filename: String,
+    val documentUri: String,
+    val sizeBytes: Long,
+    val modifiedAtMillis: Long,
+    val mimeType: String,
+    val category: MacRemoteFileCategory,
+    val isDirectory: Boolean,
+    val thumbnailBase64: String? = null
 )

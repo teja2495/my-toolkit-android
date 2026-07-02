@@ -178,6 +178,10 @@ class PhoneFileRepository(private val context: Context) {
         return destinationUri
     }
 
+    fun saveDownloadedMacFile(filename: String, mimeType: String, sourceFile: File): Uri {
+        return saveIncomingSharedFile(filename, mimeType, sourceFile)
+    }
+
     private fun ContentResolver.queryFiles(
         collection: Uri,
         projection: Array<String>,

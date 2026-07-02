@@ -14,13 +14,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LaptopMac
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -56,16 +60,21 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.tk.myapp.feature.phoneintegration.PhoneBridgeConnectionState
 import com.tk.myapp.feature.phoneintegration.PhoneIntegrationController
 import com.tk.myapp.feature.phoneintegration.PhoneIntegrationService
+import com.tk.myapp.feature.phoneintegration.MacRemoteFileCategory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhoneIntegrationScreen(onBack: () -> Unit) {
+fun PhoneIntegrationScreen(
+    onBack: () -> Unit,
+    onOpenMacFolder: (category: MacRemoteFileCategory, documentUri: String?, title: String) -> Unit
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val controller = remember { PhoneIntegrationController.getInstance(context) }
     val uiState by controller.uiState.collectAsState()
     var hasFileAccess by remember { mutableStateOf(hasRequiredFileAccess(context)) }
     var ignoresBatteryOptimizations by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+    var isTrustedDevicesExpanded by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
@@ -110,7 +119,8 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Card(
@@ -154,19 +164,20 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(
-                            onClick = {
-                                startPhoneBridge(context)
+                        if (uiState.connectionState == PhoneBridgeConnectionState.Stopped) {
+                            Button(
+                                onClick = {
+                                    startPhoneBridge(context)
+                                }
+                            ) {
+                                Text("Start Bridge")
                             }
-                        ) {
-                            Text(if (uiState.connectionState == PhoneBridgeConnectionState.Stopped) "Start Bridge" else "Restart Bridge")
-                        }
-                        if (uiState.connectionState != PhoneBridgeConnectionState.Stopped) {
+                        } else {
                             OutlinedButton(onClick = {
                                 context.stopService(Intent(context, PhoneIntegrationService::class.java))
                                 controller.stop()
                             }) {
-                                Text("Stop")
+                                Text("Stop Bridge")
                             }
                         }
                     }
@@ -263,35 +274,124 @@ fun PhoneIntegrationScreen(onBack: () -> Unit) {
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Trusted Devices", style = MaterialTheme.typography.titleMedium)
-                    if (uiState.trustedPeers.isEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            "No Macs are paired yet.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            "Trusted Devices",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f)
                         )
-                    } else {
-                        uiState.trustedPeers.forEach { peer ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(peer.name, style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                        peer.id,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                IconButton(onClick = { controller.removeTrustedPeer(peer.id) }) {
-                                    Icon(Icons.Outlined.Delete, contentDescription = "Remove paired device")
+                        IconButton(onClick = { isTrustedDevicesExpanded = !isTrustedDevicesExpanded }) {
+                            Icon(
+                                imageVector = if (isTrustedDevicesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = if (isTrustedDevicesExpanded) "Collapse trusted devices" else "Expand trusted devices"
+                            )
+                        }
+                    }
+                    if (isTrustedDevicesExpanded) {
+                        if (uiState.trustedPeers.isEmpty()) {
+                            Text(
+                                "No Macs are paired yet.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            uiState.trustedPeers.forEach { peer ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(peer.name, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            peer.id,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(onClick = { controller.removeTrustedPeer(peer.id) }) {
+                                        Icon(Icons.Outlined.Delete, contentDescription = "Remove paired device")
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        "Mac Files",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    if (uiState.connectedPeerName == null) {
+                        Text(
+                            "Connect Toolkit on your Mac to browse Desktop and Downloads.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        MacFolderNavigationCard(
+                            title = MacRemoteFileCategory.Desktop.title,
+                            onClick = {
+                                onOpenMacFolder(MacRemoteFileCategory.Desktop, null, MacRemoteFileCategory.Desktop.title)
+                            }
+                        )
+                        MacFolderNavigationCard(
+                            title = MacRemoteFileCategory.Downloads.title,
+                            onClick = {
+                                onOpenMacFolder(MacRemoteFileCategory.Downloads, null, MacRemoteFileCategory.Downloads.title)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MacFolderNavigationCard(
+    title: String,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Icon(
+                Icons.Outlined.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = "Open",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
