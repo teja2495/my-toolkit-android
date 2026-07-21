@@ -33,6 +33,8 @@ data class PhoneBridgeUiState(
     val connectedPeerName: String? = null,
     val pendingPairing: PendingPairingRequest? = null,
     val trustedPeers: List<TrustedPhonePeer> = emptyList(),
+    val currentWifiNetwork: String? = null,
+    val trustedNetworks: List<String> = emptyList(),
     val isLoadingMacFolder: Boolean = false,
     val macFolderStatusMessage: String = "Connect Toolkit on your Mac to browse files.",
     val currentMacFolderCategory: MacRemoteFileCategory? = null,

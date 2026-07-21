@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Folder
@@ -75,6 +76,9 @@ fun PhoneIntegrationScreen(
     var hasFileAccess by remember { mutableStateOf(hasRequiredFileAccess(context)) }
     var ignoresBatteryOptimizations by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
     var isTrustedDevicesExpanded by remember { mutableStateOf(false) }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { controller.refreshNetworkState() }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
@@ -84,6 +88,7 @@ fun PhoneIntegrationScreen(
     LaunchedEffect(Unit) {
         hasFileAccess = hasRequiredFileAccess(context)
         ignoresBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+        controller.refreshNetworkState()
     }
 
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -91,6 +96,7 @@ fun PhoneIntegrationScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasFileAccess = hasRequiredFileAccess(context)
                 ignoresBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+                controller.refreshNetworkState()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -321,6 +327,18 @@ fun PhoneIntegrationScreen(
                 }
             }
 
+            TrustedNetworksCard(
+                currentNetwork = uiState.currentWifiNetwork,
+                trustedNetworks = uiState.trustedNetworks,
+                canRequestLocationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED,
+                onRequestLocationPermission = {
+                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                },
+                onTrustCurrentNetwork = controller::trustCurrentWifiNetwork,
+                onRemoveNetwork = controller::removeTrustedNetwork
+            )
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
@@ -353,6 +371,70 @@ fun PhoneIntegrationScreen(
                                 onOpenMacFolder(MacRemoteFileCategory.Downloads, null, MacRemoteFileCategory.Downloads.title)
                             }
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrustedNetworksCard(
+    currentNetwork: String?,
+    trustedNetworks: List<String>,
+    canRequestLocationPermission: Boolean,
+    onRequestLocationPermission: () -> Unit,
+    onTrustCurrentNetwork: () -> Boolean,
+    onRemoveNetwork: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Trusted Networks", style = MaterialTheme.typography.titleMedium)
+            if (currentNetwork == null) {
+                Text(
+                    "Connect to Wi-Fi and allow location access to identify the current network.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (canRequestLocationPermission) {
+                    OutlinedButton(onClick = onRequestLocationPermission) { Text("Allow Location Access") }
+                }
+            } else {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (currentNetwork in trustedNetworks) {
+                        Icon(
+                            Icons.Filled.CheckCircle,
+                            contentDescription = "Trusted network",
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(currentNetwork, style = MaterialTheme.typography.bodyMedium)
+                        if (currentNetwork !in trustedNetworks) {
+                            Text(
+                                "Current Wi-Fi network",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (currentNetwork !in trustedNetworks) {
+                        OutlinedButton(onClick = { onTrustCurrentNetwork() }) { Text("Trust") }
+                    }
+                }
+            }
+            trustedNetworks.filterNot { it == currentNetwork }.forEach { networkName ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(networkName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { onRemoveNetwork(networkName) }) {
+                        Icon(Icons.Outlined.Delete, contentDescription = "Remove trusted network")
                     }
                 }
             }

@@ -57,6 +57,23 @@ class PhoneIntegrationStore(context: Context) {
         saveTrustedPeers(getTrustedPeers().filterNot { it.id == peerId })
     }
 
+    fun getTrustedNetworks(): List<String> {
+        val raw = preferences.getString(KEY_TRUSTED_NETWORKS, null) ?: return emptyList()
+        return runCatching {
+            JSONArray(raw).let { networks ->
+                List(networks.length()) { index -> networks.getString(index) }
+            }
+        }.getOrElse { emptyList() }
+    }
+
+    fun saveTrustedNetwork(networkName: String) {
+        saveTrustedNetworks(getTrustedNetworks() + networkName)
+    }
+
+    fun removeTrustedNetwork(networkName: String) {
+        saveTrustedNetworks(getTrustedNetworks().filterNot { it == networkName })
+    }
+
     private fun saveTrustedPeers(peers: List<TrustedPhonePeer>) {
         val array = JSONArray()
         peers.forEach { peer ->
@@ -71,8 +88,20 @@ class PhoneIntegrationStore(context: Context) {
         preferences.edit().putString(KEY_TRUSTED_PEERS, array.toString()).apply()
     }
 
+    private fun saveTrustedNetworks(networks: List<String>) {
+        val normalizedNetworks = networks
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .sortedBy { it.lowercase() }
+        preferences.edit()
+            .putString(KEY_TRUSTED_NETWORKS, JSONArray(normalizedNetworks).toString())
+            .apply()
+    }
+
     companion object {
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_TRUSTED_PEERS = "trusted_peers"
+        private const val KEY_TRUSTED_NETWORKS = "trusted_networks"
     }
 }

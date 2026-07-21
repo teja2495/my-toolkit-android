@@ -5,6 +5,9 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.IBinder
 import android.os.PowerManager
 import android.net.wifi.WifiManager
@@ -16,10 +19,20 @@ class PhoneIntegrationService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+    private lateinit var connectivityManager: ConnectivityManager
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) = updateBridgeForNetwork()
+
+        override fun onLost(network: Network) = updateBridgeForNetwork()
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) =
+            updateBridgeForNetwork()
+    }
 
     override fun onCreate() {
         super.onCreate()
         controller = PhoneIntegrationController.getInstance(this)
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         createNotificationChannel()
         acquireBridgeLocks()
         startForeground(
@@ -31,21 +44,32 @@ class PhoneIntegrationService : Service() {
                 .setOngoing(true)
                 .build()
         )
-        controller.start()
+        connectivityManager.registerDefaultNetworkCallback(networkCallback)
+        updateBridgeForNetwork()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        controller.start()
-        return START_STICKY
+        updateBridgeForNetwork()
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
         controller.stop()
         releaseBridgeLocks()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun updateBridgeForNetwork() {
+        controller.refreshNetworkState()
+        if (controller.isCurrentWifiTrusted()) {
+            controller.start()
+        } else {
+            stopSelf()
+        }
+    }
 
     private fun createNotificationChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

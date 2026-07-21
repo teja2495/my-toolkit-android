@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
+import android.net.wifi.WifiManager
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -64,13 +65,26 @@ class PhoneIntegrationController private constructor(context: Context) {
         PhoneBridgeUiState(
             deviceName = deviceName,
             deviceId = deviceId,
-            trustedPeers = store.getTrustedPeers()
+            trustedPeers = store.getTrustedPeers(),
+            currentWifiNetwork = currentWifiNetworkName(),
+            trustedNetworks = store.getTrustedNetworks()
         )
     )
     val uiState: StateFlow<PhoneBridgeUiState> = _uiState
 
     fun start() {
         if (serverJob?.isActive == true) return
+        if (!isCurrentWifiTrusted()) {
+            refreshNetworkState()
+            _uiState.update {
+                it.copy(
+                    connectionState = PhoneBridgeConnectionState.Stopped,
+                    statusMessage = "Connect to a trusted Wi-Fi network to start the bridge",
+                    connectedPeerName = null
+                )
+            }
+            return
+        }
         Log.d(TAG, "Starting phone bridge deviceId=$deviceId deviceName=$deviceName")
         _uiState.update {
             it.copy(
@@ -220,6 +234,32 @@ class PhoneIntegrationController private constructor(context: Context) {
         }
     }
 
+    fun trustCurrentWifiNetwork(): Boolean {
+        val networkName = currentWifiNetworkName() ?: return false
+        store.saveTrustedNetwork(networkName)
+        refreshNetworkState()
+        return true
+    }
+
+    fun removeTrustedNetwork(networkName: String) {
+        store.removeTrustedNetwork(networkName)
+        refreshNetworkState()
+    }
+
+    fun isCurrentWifiTrusted(): Boolean {
+        val networkName = currentWifiNetworkName() ?: return false
+        return networkName in store.getTrustedNetworks()
+    }
+
+    fun refreshNetworkState() {
+        _uiState.update {
+            it.copy(
+                currentWifiNetwork = currentWifiNetworkName(),
+                trustedNetworks = store.getTrustedNetworks()
+            )
+        }
+    }
+
     fun openMacFolder(
         category: MacRemoteFileCategory,
         documentUri: String? = null,
@@ -308,10 +348,20 @@ class PhoneIntegrationController private constructor(context: Context) {
 
     /** Invalidates cached Mac folder listings; call when the app returns to the foreground. */
     fun onAppForegrounded() {
+        refreshNetworkState()
         macFolderCache.clear()
         if (_uiState.value.currentMacFolderCategory != null) {
             refreshMacFiles()
         }
+    }
+
+    private fun currentWifiNetworkName(): String? {
+        val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val ssid = wifiManager.connectionInfo?.ssid
+            ?.removePrefix("\"")
+            ?.removeSuffix("\"")
+            ?.trim()
+        return ssid?.takeUnless { it.isNullOrEmpty() || it == WifiManager.UNKNOWN_SSID }
     }
 
     private fun macFolderCacheKey(category: MacRemoteFileCategory, documentUri: String?): String =
