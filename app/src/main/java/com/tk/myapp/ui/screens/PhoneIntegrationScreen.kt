@@ -76,6 +76,7 @@ fun PhoneIntegrationScreen(
     var hasFileAccess by remember { mutableStateOf(hasRequiredFileAccess(context)) }
     var ignoresBatteryOptimizations by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
     var isTrustedDevicesExpanded by remember { mutableStateOf(false) }
+    var isTrustedNetworksExpanded by remember { mutableStateOf(false) }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { controller.refreshNetworkState() }
@@ -330,6 +331,8 @@ fun PhoneIntegrationScreen(
             TrustedNetworksCard(
                 currentNetwork = uiState.currentWifiNetwork,
                 trustedNetworks = uiState.trustedNetworks,
+                isExpanded = isTrustedNetworksExpanded,
+                onExpandToggle = { isTrustedNetworksExpanded = !isTrustedNetworksExpanded },
                 canRequestLocationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED,
                 onRequestLocationPermission = {
@@ -382,6 +385,8 @@ fun PhoneIntegrationScreen(
 private fun TrustedNetworksCard(
     currentNetwork: String?,
     trustedNetworks: List<String>,
+    isExpanded: Boolean,
+    onExpandToggle: () -> Unit,
     canRequestLocationPermission: Boolean,
     onRequestLocationPermission: () -> Unit,
     onTrustCurrentNetwork: () -> Boolean,
@@ -395,46 +400,56 @@ private fun TrustedNetworksCard(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Trusted Networks", style = MaterialTheme.typography.titleMedium)
-            if (currentNetwork == null) {
-                Text(
-                    "Connect to Wi-Fi and allow location access to identify the current network.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (canRequestLocationPermission) {
-                    OutlinedButton(onClick = onRequestLocationPermission) { Text("Allow Location Access") }
-                }
-            } else {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    if (currentNetwork in trustedNetworks) {
-                        Icon(
-                            Icons.Filled.CheckCircle,
-                            contentDescription = "Trusted network",
-                            tint = Color(0xFF2E7D32),
-                            modifier = Modifier.padding(end = 12.dp)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(currentNetwork, style = MaterialTheme.typography.bodyMedium)
-                        if (currentNetwork !in trustedNetworks) {
-                            Text(
-                                "Current Wi-Fi network",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    if (currentNetwork !in trustedNetworks) {
-                        OutlinedButton(onClick = { onTrustCurrentNetwork() }) { Text("Trust") }
-                    }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Trusted Networks", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = onExpandToggle) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse trusted networks" else "Expand trusted networks"
+                    )
                 }
             }
-            trustedNetworks.filterNot { it == currentNetwork }.forEach { networkName ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(networkName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onRemoveNetwork(networkName) }) {
-                        Icon(Icons.Outlined.Delete, contentDescription = "Remove trusted network")
+            if (isExpanded) {
+                if (currentNetwork == null) {
+                    Text(
+                        "Connect to Wi-Fi and allow location access to identify the current network.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (canRequestLocationPermission) {
+                        OutlinedButton(onClick = onRequestLocationPermission) { Text("Allow Location Access") }
+                    }
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        if (currentNetwork in trustedNetworks) {
+                            Icon(
+                                Icons.Filled.CheckCircle,
+                                contentDescription = "Trusted network",
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(currentNetwork, style = MaterialTheme.typography.bodyMedium)
+                            if (currentNetwork !in trustedNetworks) {
+                                Text("Current Wi-Fi network", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        if (currentNetwork !in trustedNetworks) {
+                            OutlinedButton(onClick = { onTrustCurrentNetwork() }) { Text("Trust") }
+                        } else {
+                            IconButton(onClick = { onRemoveNetwork(currentNetwork) }) {
+                                Icon(Icons.Outlined.Delete, contentDescription = "Remove trusted network")
+                            }
+                        }
+                    }
+                }
+                trustedNetworks.filterNot { it == currentNetwork }.forEach { networkName ->
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(networkName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        IconButton(onClick = { onRemoveNetwork(networkName) }) {
+                            Icon(Icons.Outlined.Delete, contentDescription = "Remove trusted network")
+                        }
                     }
                 }
             }
