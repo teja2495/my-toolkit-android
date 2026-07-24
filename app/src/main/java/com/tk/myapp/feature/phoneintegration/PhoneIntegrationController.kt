@@ -14,6 +14,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,17 @@ class PhoneIntegrationController private constructor(context: Context) {
                 it.copy(
                     connectionState = PhoneBridgeConnectionState.Stopped,
                     statusMessage = "Connect to a trusted Wi-Fi network to start the bridge",
+                    connectedPeerName = null
+                )
+            }
+            return
+        }
+        if (!hasTrustedDevice()) {
+            refreshNetworkState()
+            _uiState.update {
+                it.copy(
+                    connectionState = PhoneBridgeConnectionState.Stopped,
+                    statusMessage = "Pair a trusted device to start the bridge",
                     connectedPeerName = null
                 )
             }
@@ -251,11 +263,16 @@ class PhoneIntegrationController private constructor(context: Context) {
         return networkName in store.getTrustedNetworks()
     }
 
+    fun hasTrustedDevice(): Boolean = store.getTrustedPeers().isNotEmpty()
+
+    fun isBridgeStartEligible(): Boolean = isCurrentWifiTrusted() && hasTrustedDevice()
+
     fun refreshNetworkState() {
         _uiState.update {
             it.copy(
                 currentWifiNetwork = currentWifiNetworkName(),
-                trustedNetworks = store.getTrustedNetworks()
+                trustedNetworks = store.getTrustedNetworks(),
+                trustedPeers = store.getTrustedPeers()
             )
         }
     }
@@ -349,6 +366,12 @@ class PhoneIntegrationController private constructor(context: Context) {
     /** Invalidates cached Mac folder listings; call when the app returns to the foreground. */
     fun onAppForegrounded() {
         refreshNetworkState()
+        if (isBridgeStartEligible()) {
+            ContextCompat.startForegroundService(
+                appContext,
+                Intent(appContext, PhoneIntegrationService::class.java)
+            )
+        }
         macFolderCache.clear()
         if (_uiState.value.currentMacFolderCategory != null) {
             refreshMacFiles()

@@ -13,9 +13,20 @@ import android.os.PowerManager
 import android.net.wifi.WifiManager
 import androidx.core.app.NotificationCompat
 import com.tk.myapp.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class PhoneIntegrationService : Service() {
     private lateinit var controller: PhoneIntegrationController
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var eligibilityJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -45,6 +56,18 @@ class PhoneIntegrationService : Service() {
                 .build()
         )
         connectivityManager.registerDefaultNetworkCallback(networkCallback)
+        eligibilityJob = serviceScope.launch {
+            controller.uiState
+                .map { state ->
+                    Triple(
+                        state.currentWifiNetwork,
+                        state.trustedNetworks,
+                        state.trustedPeers.map { peer -> peer.id to peer.publicKeyBase64 }
+                    )
+                }
+                .distinctUntilChanged()
+                .collectLatest { updateBridgeForNetwork() }
+        }
         updateBridgeForNetwork()
     }
 
@@ -54,6 +77,9 @@ class PhoneIntegrationService : Service() {
     }
 
     override fun onDestroy() {
+        eligibilityJob?.cancel()
+        eligibilityJob = null
+        serviceScope.cancel()
         runCatching { connectivityManager.unregisterNetworkCallback(networkCallback) }
         controller.stop()
         releaseBridgeLocks()
@@ -64,10 +90,18 @@ class PhoneIntegrationService : Service() {
 
     private fun updateBridgeForNetwork() {
         controller.refreshNetworkState()
-        if (controller.isCurrentWifiTrusted()) {
+        val isWifiTrusted = controller.isCurrentWifiTrusted()
+        val hasTrustedDevice = controller.hasTrustedDevice()
+        if (isWifiTrusted && hasTrustedDevice) {
             controller.start()
         } else {
-            stopSelf()
+            android.util.Log.d(
+                "PhoneIntegration",
+                "Bridge waiting: trustedWifi=$isWifiTrusted trustedDevice=$hasTrustedDevice"
+            )
+            if (controller.uiState.value.connectionState != PhoneBridgeConnectionState.Stopped) {
+                controller.stop()
+            }
         }
     }
 
