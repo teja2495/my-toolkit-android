@@ -14,7 +14,7 @@ interface OpenAiApiService {
 }
 
 data class OpenAiRequest(
-    val model: String = "gpt-5-mini",
+    val model: String = "gpt-5.6-luna",
     val messages: List<Message>,
     val max_completion_tokens: Int = 150
 )

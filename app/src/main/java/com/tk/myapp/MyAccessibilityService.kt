@@ -18,6 +18,7 @@ import com.tk.myapp.api.ApiClient
 import com.tk.myapp.api.Message
 import com.tk.myapp.api.OpenAiRequest
 import com.tk.myapp.data.common.Storage
+import com.tk.myapp.data.rewritely.RewritePrompt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -161,8 +162,8 @@ class MyAccessibilityService : AccessibilityService() {
                         ignoringTextChanges = false
                     }
                     
-                    // Trigger API call with this shortcut's prompt
-                    fetchNewText(cleanedText, shortcut.prompt)
+                    // Trigger the rewrite API call.
+                    fetchNewText(cleanedText)
                 }
                 break // Only process first matching shortcut
             }
@@ -205,7 +206,7 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun fetchNewText(extractedText: String, configuredPrompt: String) {
+    private fun fetchNewText(extractedText: String) {
         if (isFetchInProgress) return
         
         val apiKey = storage.getApiKey(Storage.KEY_OPENAI_API_KEY)
@@ -214,24 +215,19 @@ class MyAccessibilityService : AccessibilityService() {
             return
         }
         
-        // Ensure prompt ends with ": " (colon and space)
-        val normalizedPrompt = when {
-            configuredPrompt.endsWith(": ") -> configuredPrompt
-            configuredPrompt.endsWith(":") -> "${configuredPrompt.dropLast(1)}: "
-            else -> "$configuredPrompt: "
-        }
-        
-        val fullPrompt = "$normalizedPrompt$extractedText"
+        val fullPrompt = "${RewritePrompt.USER_PROMPT}\n$extractedText"
         
         isFetchInProgress = true
         
-        // Show "Rewriting..." placeholder
-        showRewritingPlaceholder()
+        showRewritingPlaceholder(extractedText)
         
         scope.launch(Dispatchers.IO) {
             try {
                 val request = OpenAiRequest(
-                    messages = listOf(Message(content = fullPrompt))
+                    messages = listOf(
+                        Message(role = "system", content = RewritePrompt.SYSTEM_PROMPT),
+                        Message(content = fullPrompt)
+                    )
                 )
                 val response = ApiClient.instance.getCompletion("Bearer $apiKey", request)
                 
@@ -242,7 +238,7 @@ class MyAccessibilityService : AccessibilityService() {
                         // Success: Replace with API response
                         applyRewriteResult(result)
                     } else {
-                        // Failure: Restore original text
+                        // Failure: Keep the original text visible beneath the error state.
                         val errorMsg = response.body()?.error?.message ?: "API Error"
                         Toast.makeText(applicationContext, errorMsg, Toast.LENGTH_LONG).show()
                         restoreTextOnFailure()
@@ -262,10 +258,10 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun showRewritingPlaceholder() {
+    private fun showRewritingPlaceholder(existingText: String) {
         val node = currentNode?.get()?.takeIf { it.stillValid() } ?: return
         ignoringTextChanges = true
-        setInputFieldText("Rewriting...")
+        setInputFieldText("Rewriting...\n$existingText")
         scope.launch {
             delay(150)
             ignoringTextChanges = false
@@ -284,7 +280,7 @@ class MyAccessibilityService : AccessibilityService() {
     private fun restoreTextOnFailure() {
         if (textBeforeShortcutRemoval.isNotBlank()) {
             ignoringTextChanges = true
-            setInputFieldText(textBeforeShortcutRemoval)
+            setInputFieldText("Error Rewriting.. \n$textBeforeShortcutRemoval")
             textBeforeShortcutRemoval = ""
             scope.launch {
                 delay(200)
