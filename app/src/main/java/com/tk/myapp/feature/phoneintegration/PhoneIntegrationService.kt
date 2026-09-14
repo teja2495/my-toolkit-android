@@ -51,7 +51,7 @@ class PhoneIntegrationService : Service() {
             NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle("Toolkit Phone Bridge")
-                .setContentText("Listening for trusted Macs on your local network")
+                .setContentText("Listening for Macs on your trusted local network")
                 .setOngoing(true)
                 .build()
         )
@@ -91,13 +91,12 @@ class PhoneIntegrationService : Service() {
     private fun updateBridgeForNetwork() {
         controller.refreshNetworkState()
         val isWifiTrusted = controller.isCurrentWifiTrusted()
-        val hasTrustedDevice = controller.hasTrustedDevice()
-        if (isWifiTrusted && hasTrustedDevice) {
+        if (isWifiTrusted) {
             controller.start()
         } else {
             android.util.Log.d(
                 "PhoneIntegration",
-                "Bridge waiting: trustedWifi=$isWifiTrusted trustedDevice=$hasTrustedDevice"
+                "Bridge waiting: trustedWifi=$isWifiTrusted"
             )
             if (controller.uiState.value.connectionState != PhoneBridgeConnectionState.Stopped) {
                 controller.stop()

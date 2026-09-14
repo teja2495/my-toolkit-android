@@ -86,17 +86,6 @@ class PhoneIntegrationController private constructor(context: Context) {
             }
             return
         }
-        if (!hasTrustedDevice()) {
-            refreshNetworkState()
-            _uiState.update {
-                it.copy(
-                    connectionState = PhoneBridgeConnectionState.Stopped,
-                    statusMessage = "Pair a trusted device to start the bridge",
-                    connectedPeerName = null
-                )
-            }
-            return
-        }
         Log.d(TAG, "Starting phone bridge deviceId=$deviceId deviceName=$deviceName")
         _uiState.update {
             it.copy(
@@ -238,10 +227,27 @@ class PhoneIntegrationController private constructor(context: Context) {
 
     fun removeTrustedPeer(peerId: String) {
         store.removeTrustedPeer(peerId)
+        activeConnections.remove(peerId)?.close()
+        pendingConnections.entries
+            .filter { it.value.peerId == peerId }
+            .forEach { (requestId, connection) ->
+                pendingConnections.remove(requestId)
+                connection.localDecision.complete(false)
+                connection.close()
+            }
         _uiState.update {
             it.copy(
                 trustedPeers = store.getTrustedPeers(),
-                statusMessage = "Removed paired device"
+                connectionState = PhoneBridgeConnectionState.Listening,
+                statusMessage = "Removed paired device",
+                connectedPeerName = null,
+                pendingPairing = null,
+                isLoadingMacFolder = false,
+                macFolderStatusMessage = "Connect Toolkit on your Mac to browse files.",
+                currentMacFolderCategory = null,
+                currentMacFolderTitle = "",
+                currentMacFolderDocumentUri = null,
+                currentMacFolderEntries = emptyList()
             )
         }
     }
@@ -263,9 +269,7 @@ class PhoneIntegrationController private constructor(context: Context) {
         return networkName in store.getTrustedNetworks()
     }
 
-    fun hasTrustedDevice(): Boolean = store.getTrustedPeers().isNotEmpty()
-
-    fun isBridgeStartEligible(): Boolean = isCurrentWifiTrusted() && hasTrustedDevice()
+    fun isBridgeStartEligible(): Boolean = isCurrentWifiTrusted()
 
     fun refreshNetworkState() {
         _uiState.update {
@@ -583,6 +587,7 @@ class PhoneIntegrationController private constructor(context: Context) {
             val sessionKey = crypto.deriveSessionKey(localKeyPair, remotePublicKey, salt)
             val peerId = hello.getString("deviceId")
             val peerName = hello.optString("deviceName", "Mac")
+            val remoteTrustsThisPhone = hello.optBoolean("trustedPeer", false)
             val code = crypto.verificationCode(localPublicKey, remotePublicKeyBase64)
             val requestId = "${peerId}-${System.currentTimeMillis()}"
             val isTrustedPeer = store.getTrustedPeers().any {
@@ -601,6 +606,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     .put("deviceId", deviceId)
                     .put("deviceName", deviceName)
                     .put("publicKey", localPublicKey)
+                    .put("trustedPeer", isTrustedPeer)
                     .put("salt", android.util.Base64.encodeToString(salt, android.util.Base64.NO_WRAP))
                     .toString()
                     .toByteArray()
@@ -616,7 +622,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                 remotePublicKeyBase64 = remotePublicKeyBase64
             )
             pendingConnections[requestId] = pending
-            if (isTrustedPeer) {
+            if (isTrustedPeer && remoteTrustsThisPhone) {
                 Log.d(TAG, "Auto-approving trusted peerId=$peerId peerName=$peerName")
                 pending.localDecision.complete(true)
                 _uiState.update {
@@ -1226,6 +1232,7 @@ class PhoneIntegrationController private constructor(context: Context) {
             serviceType = PhoneBridgeProtocol.serviceType
             this.port = port
             setAttribute("deviceId", deviceId)
+            setAttribute("deviceName", deviceName)
             setAttribute("protocol", PhoneBridgeProtocol.version.toString())
             setAttribute("platform", "android")
         }
