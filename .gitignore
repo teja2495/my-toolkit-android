@@ -17,6 +17,7 @@ release/
 
 # Gradle files
 .gradle/
+.gradle-codex/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
