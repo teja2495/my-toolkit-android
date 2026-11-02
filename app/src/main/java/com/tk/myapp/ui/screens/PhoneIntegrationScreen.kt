@@ -174,6 +174,7 @@ fun PhoneIntegrationScreen(
                         if (uiState.connectionState == PhoneBridgeConnectionState.Stopped) {
                             Button(
                                 onClick = {
+                                    controller.setBridgeEnabled(true)
                                     startPhoneBridge(context)
                                 }
                             ) {
@@ -181,6 +182,7 @@ fun PhoneIntegrationScreen(
                             }
                         } else {
                             OutlinedButton(onClick = {
+                                controller.setBridgeEnabled(false)
                                 context.stopService(Intent(context, PhoneIntegrationService::class.java))
                                 controller.stop()
                             }) {

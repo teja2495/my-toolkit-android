@@ -271,6 +271,10 @@ class PhoneIntegrationController private constructor(context: Context) {
 
     fun isBridgeStartEligible(): Boolean = isCurrentWifiTrusted()
 
+    fun setBridgeEnabled(enabled: Boolean) = store.setBridgeEnabled(enabled)
+
+    fun isBridgeEnabled(): Boolean = store.isBridgeEnabled()
+
     fun refreshNetworkState() {
         _uiState.update {
             it.copy(

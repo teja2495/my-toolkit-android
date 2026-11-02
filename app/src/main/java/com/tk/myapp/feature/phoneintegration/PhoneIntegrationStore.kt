@@ -13,6 +13,11 @@ class PhoneIntegrationStore(context: Context) {
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
+    private val plainPreferences = appContext.getSharedPreferences(
+        "phone_integration_prefs",
+        Context.MODE_PRIVATE
+    )
+
     private val preferences = EncryptedSharedPreferences.create(
         appContext,
         "phone_integration_secure_prefs",
@@ -20,6 +25,12 @@ class PhoneIntegrationStore(context: Context) {
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
+
+    fun isBridgeEnabled(): Boolean = plainPreferences.getBoolean(KEY_BRIDGE_ENABLED, false)
+
+    fun setBridgeEnabled(enabled: Boolean) {
+        plainPreferences.edit().putBoolean(KEY_BRIDGE_ENABLED, enabled).apply()
+    }
 
     fun getDeviceId(): String {
         preferences.getString(KEY_DEVICE_ID, null)?.let { return it }
@@ -103,5 +114,6 @@ class PhoneIntegrationStore(context: Context) {
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_TRUSTED_PEERS = "trusted_peers"
         private const val KEY_TRUSTED_NETWORKS = "trusted_networks"
+        private const val KEY_BRIDGE_ENABLED = "bridge_enabled"
     }
 }
