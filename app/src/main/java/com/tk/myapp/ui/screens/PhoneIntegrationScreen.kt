@@ -11,6 +11,30 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.outlined.BatteryAlert
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.tk.myapp.ui.components.common.Segment
+import com.tk.myapp.ui.components.common.SegmentRow
+import com.tk.myapp.ui.components.common.SegmentedSection
+import com.tk.myapp.ui.components.common.ShapeIcon
+import com.tk.myapp.ui.components.common.ToolkitScaffold
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -63,7 +87,7 @@ import com.tk.myapp.feature.phoneintegration.PhoneIntegrationController
 import com.tk.myapp.feature.phoneintegration.PhoneIntegrationService
 import com.tk.myapp.feature.phoneintegration.MacRemoteFileCategory
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PhoneIntegrationScreen(
     onBack: () -> Unit,
@@ -106,277 +130,322 @@ fun PhoneIntegrationScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Mac Integration") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (uiState.connectedPeerName != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.LaptopMac,
-                                contentDescription = null,
-                                tint = Color(0xFF2E7D32)
-                            )
-                            Text(
-                                "Connected to ${uiState.connectedPeerName}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    } else {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(Icons.Outlined.PhoneAndroid, contentDescription = null)
-                            Column {
-                                Text(uiState.deviceName, style = MaterialTheme.typography.titleMedium)
-                                Text(
-                                    uiState.statusMessage,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (uiState.connectionState == PhoneBridgeConnectionState.Stopped) {
-                            Button(
-                                onClick = {
-                                    controller.setBridgeEnabled(true)
-                                    startPhoneBridge(context)
-                                }
-                            ) {
-                                Text("Start Bridge")
-                            }
-                        } else {
-                            OutlinedButton(onClick = {
-                                controller.setBridgeEnabled(false)
-                                context.stopService(Intent(context, PhoneIntegrationService::class.java))
-                                controller.stop()
-                            }) {
-                                Text("Stop Bridge")
-                            }
-                        }
-                    }
-                }
+    ToolkitScaffold(title = "Mac Integration", onBack = onBack) {
+        BridgeStatusCard(
+            connectedPeerName = uiState.connectedPeerName,
+            deviceName = uiState.deviceName,
+            statusMessage = uiState.statusMessage,
+            isStopped = uiState.connectionState == PhoneBridgeConnectionState.Stopped,
+            onStart = {
+                controller.setBridgeEnabled(true)
+                startPhoneBridge(context)
+            },
+            onStop = {
+                controller.setBridgeEnabled(false)
+                context.stopService(Intent(context, PhoneIntegrationService::class.java))
+                controller.stop()
             }
+        )
 
-            if (!ignoresBatteryOptimizations) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("Background Reliability", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Disable battery optimization for Toolkit if you want the phone bridge to stay reachable while the app is backgrounded or the screen is off.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedButton(onClick = { openBatteryOptimizationSettings(context) }) {
-                            Text("Allow Background Running")
-                        }
-                    }
-                }
-            }
-
-            if (!hasFileAccess) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("File Access", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Grant file access so your paired Mac can browse files stored on this Android device."
-                            ,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            OutlinedButton(onClick = { openAllFilesAccessSettings(context) }) {
-                                Text("Grant File Access")
-                            }
-                        } else {
-                            OutlinedButton(onClick = { permissionLauncher.launch(requiredStoragePermissions()) }) {
-                                Text("Grant File Access")
-                            }
-                        }
-                    }
-                }
-            }
-
-            uiState.pendingPairing?.let { pending ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Pair with ${pending.peerName}", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Confirm this code is shown on your Mac before approving.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Text(
-                            pending.verificationCode.chunked(3).joinToString(" "),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(onClick = { controller.approvePendingPairing(pending.requestId) }) {
-                                Text("Approve")
-                            }
-                            OutlinedButton(onClick = { controller.rejectPendingPairing(pending.requestId) }) {
-                                Text("Reject")
-                            }
-                        }
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        uiState.pendingPairing?.let { pending ->
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Trusted Devices",
-                            style = MaterialTheme.typography.titleMedium,
+                    Text("Pair with ${pending.peerName}", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Approve only if your Mac shows the same code.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        pending.verificationCode.chunked(3).joinToString(" "),
+                        style = MaterialTheme.typography.displayMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { controller.approvePendingPairing(pending.requestId) },
+                            shapes = ButtonDefaults.shapes(),
                             modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { isTrustedDevicesExpanded = !isTrustedDevicesExpanded }) {
-                            Icon(
-                                imageVector = if (isTrustedDevicesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                contentDescription = if (isTrustedDevicesExpanded) "Collapse trusted devices" else "Expand trusted devices"
-                            )
-                        }
-                    }
-                    if (isTrustedDevicesExpanded) {
-                        if (uiState.trustedPeers.isEmpty()) {
-                            Text(
-                                "No Macs are paired yet.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            uiState.trustedPeers.forEach { peer ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(peer.name, style = MaterialTheme.typography.bodyMedium)
-                                        Text(
-                                            peer.id,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    IconButton(onClick = { controller.removeTrustedPeer(peer.id) }) {
-                                        Icon(Icons.Outlined.Delete, contentDescription = "Remove paired device")
-                                    }
-                                }
-                            }
-                        }
+                        ) { Text("Approve") }
+                        OutlinedButton(
+                            onClick = { controller.rejectPendingPairing(pending.requestId) },
+                            shapes = ButtonDefaults.shapes(),
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Reject") }
                     }
                 }
             }
+        }
 
-            TrustedNetworksCard(
-                currentNetwork = uiState.currentWifiNetwork,
-                trustedNetworks = uiState.trustedNetworks,
-                isExpanded = isTrustedNetworksExpanded,
-                onExpandToggle = { isTrustedNetworksExpanded = !isTrustedNetworksExpanded },
-                canRequestLocationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED,
-                onRequestLocationPermission = {
-                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                },
-                onTrustCurrentNetwork = controller::trustCurrentWifiNetwork,
-                onRemoveNetwork = controller::removeTrustedNetwork
-            )
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Text(
-                        "Mac Files",
-                        style = MaterialTheme.typography.titleMedium
+        val setupItems = buildList<@Composable (Shape) -> Unit> {
+            if (!ignoresBatteryOptimizations) {
+                add { shape ->
+                    SetupSegment(
+                        shape = shape,
+                        title = "Background running",
+                        description = "Keeps the bridge reachable when the app is closed or the screen is off.",
+                        icon = Icons.Outlined.BatteryAlert,
+                        actionLabel = "Allow",
+                        onAction = { openBatteryOptimizationSettings(context) }
                     )
+                }
+            }
+            if (!hasFileAccess) {
+                add { shape ->
+                    SetupSegment(
+                        shape = shape,
+                        title = "File access",
+                        description = "Lets your paired Mac browse files on this phone.",
+                        icon = Icons.Outlined.FolderOpen,
+                        actionLabel = "Grant",
+                        onAction = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                openAllFilesAccessSettings(context)
+                            } else {
+                                permissionLauncher.launch(requiredStoragePermissions())
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        if (setupItems.isNotEmpty()) {
+            SegmentedSection(title = "Finish setup", items = setupItems)
+        }
 
-                    if (uiState.connectedPeerName == null) {
-                        Text(
-                            "Connect Toolkit on your Mac to browse Desktop and Downloads.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        MacFolderNavigationCard(
-                            title = MacRemoteFileCategory.Desktop.title,
-                            onClick = {
-                                onOpenMacFolder(MacRemoteFileCategory.Desktop, null, MacRemoteFileCategory.Desktop.title)
-                            }
-                        )
-                        MacFolderNavigationCard(
-                            title = MacRemoteFileCategory.Downloads.title,
-                            onClick = {
-                                onOpenMacFolder(MacRemoteFileCategory.Downloads, null, MacRemoteFileCategory.Downloads.title)
-                            }
+        SegmentedSection(
+            title = "Mac files",
+            items = if (uiState.connectedPeerName == null) {
+                listOf<@Composable (Shape) -> Unit>({ shape ->
+                    Segment(shape = shape) {
+                        SegmentRow(
+                            headline = "Not connected",
+                            supporting = "Connect Toolkit on your Mac to browse Desktop and Downloads."
                         )
                     }
+                })
+            } else {
+                listOf(MacRemoteFileCategory.Desktop, MacRemoteFileCategory.Downloads).map<MacRemoteFileCategory, @Composable (Shape) -> Unit> { category ->
+                    val item: @Composable (Shape) -> Unit = { shape: Shape ->
+                        Segment(
+                            shape = shape,
+                            onClick = { onOpenMacFolder(category, null, category.title) }
+                        ) {
+                            SegmentRow(
+                                headline = category.title,
+                                leading = {
+                                    Icon(
+                                        Icons.Outlined.Folder,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                },
+                                trailing = {
+                                    Icon(
+                                        Icons.Filled.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            )
+                        }
+                    }
+                    item
+                }
+            }
+        )
+
+        SegmentedSection(
+            title = "Trust",
+            items = listOf(
+                { shape ->
+                    ExpandableSegment(
+                        shape = shape,
+                        title = "Trusted devices",
+                        summary = when (uiState.trustedPeers.size) {
+                            0 -> "No Macs paired yet"
+                            1 -> "1 Mac"
+                            else -> "${uiState.trustedPeers.size} Macs"
+                        },
+                        icon = Icons.Outlined.LaptopMac,
+                        expanded = isTrustedDevicesExpanded,
+                        onToggle = { isTrustedDevicesExpanded = !isTrustedDevicesExpanded }
+                    ) {
+                        uiState.trustedPeers.forEach { peer ->
+                            DetailRow(
+                                title = peer.name,
+                                subtitle = peer.id,
+                                trailing = {
+                                    IconButton(onClick = { controller.removeTrustedPeer(peer.id) }) {
+                                        Icon(Icons.Outlined.Delete, contentDescription = "Remove ${peer.name}")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                },
+                { shape ->
+                    TrustedNetworksSegment(
+                        shape = shape,
+                        currentNetwork = uiState.currentWifiNetwork,
+                        trustedNetworks = uiState.trustedNetworks,
+                        isExpanded = isTrustedNetworksExpanded,
+                        onExpandToggle = { isTrustedNetworksExpanded = !isTrustedNetworksExpanded },
+                        canRequestLocationPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED,
+                        onRequestLocationPermission = {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        },
+                        onTrustCurrentNetwork = controller::trustCurrentWifiNetwork,
+                        onRemoveNetwork = controller::removeTrustedNetwork
+                    )
+                }
+            )
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun BridgeStatusCard(
+    connectedPeerName: String?,
+    deviceName: String,
+    statusMessage: String,
+    isStopped: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    val connected = connectedPeerName != null
+    val container by animateColorAsState(
+        targetValue = if (connected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+        label = "statusContainer"
+    )
+    val content = if (connected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+
+    Surface(
+        shape = MaterialTheme.shapes.extraLargeIncreased,
+        color = container,
+        contentColor = content,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ShapeIcon(
+                    icon = if (connected) Icons.Outlined.LaptopMac else Icons.Outlined.PhoneAndroid,
+                    polygon = if (connected) MaterialShapes.Cookie12Sided else MaterialShapes.Cookie6Sided,
+                    container = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                    content = if (connected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                    size = 56.dp
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        if (connected) "Connected" else deviceName,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    Text(
+                        if (connected) connectedPeerName.orEmpty() else statusMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (connected) content else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (isStopped) {
+                Button(onClick = onStart, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                    Text("Start bridge")
+                }
+            } else {
+                OutlinedButton(onClick = onStop, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                    Text("Stop bridge")
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SetupSegment(
+    shape: Shape,
+    title: String,
+    description: String,
+    icon: ImageVector,
+    actionLabel: String,
+    onAction: () -> Unit
+) {
+    Segment(shape = shape) {
+        SegmentRow(
+            headline = title,
+            supporting = description,
+            leading = {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+            },
+            trailing = {
+                FilledTonalButton(onClick = onAction, shapes = ButtonDefaults.shapes()) {
+                    Text(actionLabel)
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ExpandableSegment(
+    shape: Shape,
+    title: String,
+    summary: String,
+    icon: ImageVector,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "chevron"
+    )
+    Segment(shape = shape) {
+        Column {
+            SegmentRow(
+                headline = title,
+                supporting = summary,
+                modifier = Modifier.clickable(onClick = onToggle),
+                leading = {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.rotate(rotation)
+                    )
+                }
+            )
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(),
+                exit = shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier.padding(start = 56.dp, end = 8.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    content()
                 }
             }
         }
@@ -384,7 +453,32 @@ fun PhoneIntegrationScreen(
 }
 
 @Composable
-private fun TrustedNetworksCard(
+private fun DetailRow(
+    title: String,
+    subtitle: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: @Composable () -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        leading?.invoke()
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        trailing()
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun TrustedNetworksSegment(
+    shape: Shape,
     currentNetwork: String?,
     trustedNetworks: List<String>,
     isExpanded: Boolean,
@@ -394,102 +488,65 @@ private fun TrustedNetworksCard(
     onTrustCurrentNetwork: () -> Boolean,
     onRemoveNetwork: (String) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    ExpandableSegment(
+        shape = shape,
+        title = "Trusted networks",
+        summary = when (trustedNetworks.size) {
+            0 -> "None yet"
+            1 -> "1 network"
+            else -> "${trustedNetworks.size} networks"
+        },
+        icon = Icons.Outlined.Wifi,
+        expanded = isExpanded,
+        onToggle = onExpandToggle
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Trusted Networks", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                IconButton(onClick = onExpandToggle) {
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (isExpanded) "Collapse trusted networks" else "Expand trusted networks"
-                    )
-                }
-            }
-            if (isExpanded) {
-                if (currentNetwork == null) {
-                    Text(
-                        "Connect to Wi-Fi and allow location access to identify the current network.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (canRequestLocationPermission) {
-                        OutlinedButton(onClick = onRequestLocationPermission) { Text("Allow Location Access") }
-                    }
-                } else {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        if (currentNetwork in trustedNetworks) {
-                            Icon(
-                                Icons.Filled.CheckCircle,
-                                contentDescription = "Trusted network",
-                                tint = Color(0xFF2E7D32),
-                                modifier = Modifier.padding(end = 12.dp)
-                            )
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(currentNetwork, style = MaterialTheme.typography.bodyMedium)
-                            if (currentNetwork !in trustedNetworks) {
-                                Text("Current Wi-Fi network", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        if (currentNetwork !in trustedNetworks) {
-                            OutlinedButton(onClick = { onTrustCurrentNetwork() }) { Text("Trust") }
-                        } else {
-                            IconButton(onClick = { onRemoveNetwork(currentNetwork) }) {
-                                Icon(Icons.Outlined.Delete, contentDescription = "Remove trusted network")
-                            }
-                        }
-                    }
-                }
-                trustedNetworks.filterNot { it == currentNetwork }.forEach { networkName ->
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(networkName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { onRemoveNetwork(networkName) }) {
-                            Icon(Icons.Outlined.Delete, contentDescription = "Remove trusted network")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MacFolderNavigationCard(
-    title: String,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Icon(
-                Icons.Outlined.Folder,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+        if (currentNetwork == null) {
             Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.weight(1f)
+                "Connect to Wi-Fi and allow location access to identify the current network.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Icon(
-                Icons.Filled.ChevronRight,
-                contentDescription = "Open",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            if (canRequestLocationPermission) {
+                FilledTonalButton(onClick = onRequestLocationPermission, shapes = ButtonDefaults.shapes()) {
+                    Text("Allow location access")
+                }
+            }
+        } else {
+            val isTrusted = currentNetwork in trustedNetworks
+            DetailRow(
+                title = currentNetwork,
+                subtitle = if (isTrusted) "Current network, trusted" else "Current network",
+                leading = if (isTrusted) {
+                    {
+                        Icon(
+                            Icons.Filled.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                    }
+                } else null,
+                trailing = {
+                    if (isTrusted) {
+                        IconButton(onClick = { onRemoveNetwork(currentNetwork) }) {
+                            Icon(Icons.Outlined.Delete, contentDescription = "Remove $currentNetwork")
+                        }
+                    } else {
+                        FilledTonalButton(onClick = { onTrustCurrentNetwork() }, shapes = ButtonDefaults.shapes()) {
+                            Text("Trust")
+                        }
+                    }
+                }
+            )
+        }
+        trustedNetworks.filterNot { it == currentNetwork }.forEach { networkName ->
+            DetailRow(
+                title = networkName,
+                trailing = {
+                    IconButton(onClick = { onRemoveNetwork(networkName) }) {
+                        Icon(Icons.Outlined.Delete, contentDescription = "Remove $networkName")
+                    }
+                }
             )
         }
     }

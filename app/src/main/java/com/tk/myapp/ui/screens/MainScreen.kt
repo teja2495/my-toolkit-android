@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -45,12 +46,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.material.icons.outlined.LaptopMac
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.ui.graphics.Shape
+import androidx.graphics.shapes.RoundedPolygon
+import com.tk.myapp.ui.components.common.Segment
+import com.tk.myapp.ui.components.common.SegmentRow
+import com.tk.myapp.ui.components.common.SegmentedSection
+import com.tk.myapp.ui.components.common.ShapeIcon
+import com.tk.myapp.ui.components.common.ToolkitScaffold
 import com.tk.myapp.R
 import com.tk.myapp.data.common.Storage
 import com.tk.myapp.data.rewritely.Shortcut
 import com.tk.myapp.ui.components.rewritely.RewritelyCard
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MainScreen(
     onNavigateToApiKeys: () -> Unit,
@@ -89,116 +99,107 @@ fun MainScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            if (!isAccessibilityEnabled) {
-                NavCard(
-                    title = "Permissions",
-                    icon = Icons.Outlined.Shield,
-                    accent = MaterialTheme.colorScheme.errorContainer,
-                    onAccent = MaterialTheme.colorScheme.onErrorContainer,
-                    onClick = onNavigateToPermissions
+    ToolkitScaffold(title = stringResource(R.string.app_name)) {
+        if (!isAccessibilityEnabled) {
+            Segment(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.errorContainer,
+                onClick = onNavigateToPermissions
+            ) {
+                SegmentRow(
+                    headline = "Accessibility is off",
+                    supporting = "Rewritely needs it in other apps",
+                    leading = {
+                        ShapeIcon(
+                            icon = Icons.Outlined.Shield,
+                            polygon = MaterialShapes.Clover4Leaf,
+                            container = MaterialTheme.colorScheme.error,
+                            content = MaterialTheme.colorScheme.onError
+                        )
+                    },
+                    trailing = {
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
                 )
             }
+        }
 
-            NavCard(
-                title = "Configure API Keys",
-                icon = Icons.Outlined.Key,
-                accent = MaterialTheme.colorScheme.primaryContainer,
-                onAccent = MaterialTheme.colorScheme.onPrimaryContainer,
-                onClick = onNavigateToApiKeys
-            )
-
-            NavCard(
-                title = "Mac Integration",
-                icon = Icons.Outlined.PhoneAndroid,
-                accent = MaterialTheme.colorScheme.tertiaryContainer,
-                onAccent = MaterialTheme.colorScheme.onTertiaryContainer,
-                onClick = onNavigateToPhoneIntegration
-            )
-
-            RewritelyCard(
-                secureStorage = secureStorage,
-                onShortcutAdded = { name, prompt, useChatGPT ->
-                    val shortcut = Shortcut(
-                        name = name,
-                        prompt = prompt,
-                        useChatGPT = useChatGPT
+        SegmentedSection(
+            title = "Features",
+            items = listOf(
+                { shape ->
+                    NavSegment(
+                        shape = shape,
+                        title = "Mac Integration",
+                        supporting = "Clipboard, files and sharing",
+                        icon = Icons.Outlined.LaptopMac,
+                        polygon = MaterialShapes.Cookie9Sided,
+                        accent = MaterialTheme.colorScheme.primaryContainer,
+                        onAccent = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onClick = onNavigateToPhoneIntegration
                     )
-                    secureStorage.addShortcut(shortcut)
+                },
+                { shape ->
+                    RewritelyCard(
+                        shape = shape,
+                        secureStorage = secureStorage,
+                        onShortcutAdded = { name, prompt, useChatGPT ->
+                            secureStorage.addShortcut(
+                                Shortcut(name = name, prompt = prompt, useChatGPT = useChatGPT)
+                            )
+                        }
+                    )
                 }
             )
-        }
+        )
+
+        SegmentedSection(
+            title = "Settings",
+            items = listOf(
+                { shape ->
+                    NavSegment(
+                        shape = shape,
+                        title = "API keys",
+                        supporting = "Gemini and OpenAI",
+                        icon = Icons.Outlined.Key,
+                        polygon = MaterialShapes.Pill,
+                        accent = MaterialTheme.colorScheme.tertiaryContainer,
+                        onAccent = MaterialTheme.colorScheme.onTertiaryContainer,
+                        onClick = onNavigateToApiKeys
+                    )
+                }
+            )
+        )
     }
 }
 
 @Composable
-private fun NavCard(
+private fun NavSegment(
+    shape: Shape,
     title: String,
+    supporting: String,
     icon: ImageVector,
+    polygon: RoundedPolygon,
     accent: Color,
     onAccent: Color,
     onClick: () -> Unit
 ) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 18.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(accent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = onAccent,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium
+    Segment(shape = shape, onClick = onClick) {
+        SegmentRow(
+            headline = title,
+            supporting = supporting,
+            leading = { ShapeIcon(icon = icon, polygon = polygon, container = accent, content = onAccent) },
+            trailing = {
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = "Navigate",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        )
     }
 }

@@ -25,7 +25,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.style.TextAlign
+import com.tk.myapp.ui.components.common.Segment
+import com.tk.myapp.ui.components.common.SegmentedSection
+import com.tk.myapp.ui.components.common.ToolkitScaffold
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -55,7 +62,7 @@ import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MacFolderBrowserScreen(
     category: MacRemoteFileCategory,
@@ -78,105 +85,72 @@ fun MacFolderBrowserScreen(
     val folders = uiState.currentMacFolderEntries.filter { it.isDirectory }
     val files = uiState.currentMacFolderEntries.filterNot { it.isDirectory }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = controller::refreshMacFiles) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
+    ToolkitScaffold(
+        title = title,
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = controller::refreshMacFiles) {
+                Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+            }
         }
-    ) { innerPadding ->
+    ) {
         when {
             uiState.isLoadingMacFolder -> {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
+                        .fillMaxWidth()
+                        .padding(top = 96.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator()
+                    LoadingIndicator()
                 }
             }
 
             folders.isEmpty() && files.isEmpty() -> {
-                Box(
+                Text(
+                    "This folder is empty",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "Empty folder",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                        .fillMaxWidth()
+                        .padding(top = 96.dp),
+                    textAlign = TextAlign.Center
+                )
             }
 
             else -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(horizontal = 20.dp, vertical = 8.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    if (folders.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            ) {
-                                folders.forEachIndexed { index, folder ->
+                if (folders.isNotEmpty()) {
+                    SegmentedSection(
+                        title = "Folders",
+                        items = folders.map { folder ->
+                            val item: @Composable (Shape) -> Unit = { shape ->
+                                Segment(shape = shape) {
                                     MacFolderEntryRow(
                                         filename = folder.filename,
                                         onClick = { onOpenFolder(folder) }
                                     )
-                                    if (index != folders.lastIndex) {
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                    }
                                 }
                             }
+                            item
                         }
-                    }
-
-                    if (files.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            ) {
-                                files.forEachIndexed { index, file ->
+                    )
+                }
+                if (files.isNotEmpty()) {
+                    SegmentedSection(
+                        title = "Files",
+                        items = files.map { file ->
+                            val item: @Composable (Shape) -> Unit = { shape ->
+                                Segment(shape = shape) {
                                     MacFileEntryRow(
                                         file = file,
                                         dateFormatter = dateFormatter,
                                         onClick = { controller.openMacFile(file) }
                                     )
-                                    if (index != files.lastIndex) {
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                    }
                                 }
                             }
+                            item
                         }
-                    }
+                    )
                 }
             }
         }
@@ -192,19 +166,19 @@ private fun MacFolderEntryRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Icon(
             Icons.Outlined.Folder,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
         )
         Text(
             filename,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f)
         )
         Icon(
@@ -236,7 +210,7 @@ private fun MacFileEntryRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -247,8 +221,8 @@ private fun MacFileEntryRow(
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .size(44.dp)
+                    .clip(MaterialTheme.shapes.medium)
             )
         } else {
             Icon(
@@ -259,7 +233,7 @@ private fun MacFileEntryRow(
             )
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(file.filename, style = MaterialTheme.typography.bodyMedium)
+            Text(file.filename, style = MaterialTheme.typography.bodyLarge)
             Text(
                 "${android.text.format.Formatter.formatShortFileSize(context, file.sizeBytes)} • ${dateFormatter.format(Date(file.modifiedAtMillis))}",
                 style = MaterialTheme.typography.bodySmall,

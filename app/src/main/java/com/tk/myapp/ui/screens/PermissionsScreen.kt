@@ -12,7 +12,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialShapes
+import com.tk.myapp.ui.components.common.Segment
+import com.tk.myapp.ui.components.common.SegmentRow
+import com.tk.myapp.ui.components.common.SegmentedSection
+import com.tk.myapp.ui.components.common.ShapeIcon
+import com.tk.myapp.ui.components.common.ToolkitScaffold
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,9 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun PermissionsScreen() {
+fun PermissionsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var isAccessibilityEnabled by remember { mutableStateOf(false) }
@@ -74,58 +86,53 @@ fun PermissionsScreen() {
         context.startActivity(intent)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Permissions") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            if (isAccessibilityEnabled) {
-                Text(
-                    text = "All permissions are provided",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp)
+    ToolkitScaffold(title = "Permissions", onBack = onBack) {
+        SegmentedSection(
+            items = listOf(
+                { shape ->
+                    Segment(
+                        shape = shape,
+                        onClick = if (isAccessibilityEnabled) null else ::openAccessibilitySettings
                     ) {
-                        Text(
-                            text = "Accessibility Permission",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(bottom = 24.dp)
+                        SegmentRow(
+                            headline = "Accessibility",
+                            supporting = if (isAccessibilityEnabled) {
+                                "On. Rewritely can work in your chosen apps."
+                            } else {
+                                "Off. Turn it on so Rewritely can work in other apps."
+                            },
+                            leading = {
+                                ShapeIcon(
+                                    icon = if (isAccessibilityEnabled) Icons.Filled.Check else Icons.Outlined.Shield,
+                                    polygon = MaterialShapes.Clover4Leaf,
+                                    container = if (isAccessibilityEnabled) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.errorContainer
+                                    },
+                                    content = if (isAccessibilityEnabled) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onErrorContainer
+                                    }
+                                )
+                            }
                         )
-
-                        Button(
-                            onClick = { openAccessibilitySettings() },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Enable Accessibility Permission")
-                        }
                     }
                 }
+            )
+        )
+
+        if (!isAccessibilityEnabled) {
+            Button(
+                onClick = { openAccessibilitySettings() },
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(ButtonDefaults.MediumContainerHeight),
+                contentPadding = ButtonDefaults.contentPaddingFor(ButtonDefaults.MediumContainerHeight)
+            ) {
+                Text("Open accessibility settings", style = ButtonDefaults.textStyleFor(ButtonDefaults.MediumContainerHeight))
             }
         }
     }

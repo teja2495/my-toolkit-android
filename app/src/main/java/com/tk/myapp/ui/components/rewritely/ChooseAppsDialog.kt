@@ -21,7 +21,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.tk.myapp.data.rewritely.AppInfo
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChooseAppsDialog(
     onDismiss: () -> Unit,
@@ -142,7 +144,7 @@ fun ChooseAppsDialog(
                             .fillMaxHeight(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        LoadingIndicator()
                     }
                 } else {
                     LazyColumn(

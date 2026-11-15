@@ -22,60 +22,52 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tk.myapp.data.common.Storage
 import com.tk.myapp.ui.components.common.ApiKeyCard
+import com.tk.myapp.ui.components.common.SegmentedSection
+import com.tk.myapp.ui.components.common.ToolkitScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ApiKeysScreen() {
+fun ApiKeysScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val secureStorage = remember { Storage(context) }
     
     var geminiKey by remember { mutableStateOf(secureStorage.getApiKey(Storage.KEY_GEMINI_API_KEY)) }
     var openaiKey by remember { mutableStateOf(secureStorage.getApiKey(Storage.KEY_OPENAI_API_KEY)) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("API Keys") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            ApiKeyCard(
-                title = "Gemini API Key",
-                savedApiKey = geminiKey,
-                onSave = { apiKey ->
-                    secureStorage.saveApiKey(Storage.KEY_GEMINI_API_KEY, apiKey)
-                    geminiKey = apiKey
+    ToolkitScaffold(title = "API keys", onBack = onBack) {
+        SegmentedSection(
+            items = listOf(
+                { shape ->
+                    ApiKeyCard(
+                        shape = shape,
+                        title = "Gemini API Key",
+                        savedApiKey = geminiKey,
+                        onSave = { apiKey ->
+                            secureStorage.saveApiKey(Storage.KEY_GEMINI_API_KEY, apiKey)
+                            geminiKey = apiKey
+                        },
+                        onReset = {
+                            secureStorage.clearApiKey(Storage.KEY_GEMINI_API_KEY)
+                            geminiKey = null
+                        }
+                    )
                 },
-                onReset = {
-                    secureStorage.clearApiKey(Storage.KEY_GEMINI_API_KEY)
-                    geminiKey = null
+                { shape ->
+                    ApiKeyCard(
+                        shape = shape,
+                        title = "OpenAI API Key",
+                        savedApiKey = openaiKey,
+                        onSave = { apiKey ->
+                            secureStorage.saveApiKey(Storage.KEY_OPENAI_API_KEY, apiKey)
+                            openaiKey = apiKey
+                        },
+                        onReset = {
+                            secureStorage.clearApiKey(Storage.KEY_OPENAI_API_KEY)
+                            openaiKey = null
+                        }
+                    )
                 }
             )
-
-            ApiKeyCard(
-                title = "OpenAI API Key",
-                savedApiKey = openaiKey,
-                onSave = { apiKey ->
-                    secureStorage.saveApiKey(Storage.KEY_OPENAI_API_KEY, apiKey)
-                    openaiKey = apiKey
-                },
-                onReset = {
-                    secureStorage.clearApiKey(Storage.KEY_OPENAI_API_KEY)
-                    openaiKey = null
-                }
-            )
-        }
+        )
     }
 }

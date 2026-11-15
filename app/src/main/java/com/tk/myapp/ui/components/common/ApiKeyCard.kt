@@ -13,7 +13,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -36,9 +41,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ApiKeyCard(
     title: String,
+    shape: Shape,
     savedApiKey: String?,
     onSave: (String) -> Unit,
     onReset: () -> Unit
@@ -48,43 +55,44 @@ fun ApiKeyCard(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
-    ) {
+    val providerName = title.removeSuffix(" API Key")
+
+    Segment(shape = shape) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(16.dp)
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge
-            )
-
             if (isSaved && savedApiKey != null) {
-                val providerName = title.replace(" API Key", "")
-                val lastFourChars = if (savedApiKey.length >= 4) {
-                    savedApiKey.takeLast(4)
-                } else {
-                    savedApiKey
-                }
-                Text(
-                    text = "Your $providerName API key: ****$lastFourChars",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
+                SegmentRow(
+                    headline = providerName,
+                    supporting = "Saved, ending in ${savedApiKey.takeLast(4)}",
+                    contentPadding = PaddingValues(0.dp),
+                    trailing = {
+                        FilledTonalButton(
+                            onClick = {
+                                onReset()
+                                apiKeyText = ""
+                            },
+                            shapes = ButtonDefaults.shapes()
+                        ) {
+                            Text("Remove")
+                        }
+                    }
                 )
             } else {
+                SegmentRow(
+                    headline = providerName,
+                    supporting = "Not set",
+                    contentPadding = PaddingValues(0.dp)
+                )
                 OutlinedTextField(
                     value = apiKeyText,
                     onValueChange = { apiKeyText = it },
-                    label = { Text("API Key") },
+                    label = { Text("$providerName API key") },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -107,31 +115,16 @@ fun ApiKeyCard(
                         }
                     }
                 )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                if (isSaved) {
-                    OutlinedButton(
-                        onClick = {
-                            onReset()
-                            apiKeyText = ""
-                        }
-                    ) {
-                        Text("Reset")
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            onSave(apiKeyText)
-                            focusManager.clearFocus()
-                        },
-                        enabled = apiKeyText.isNotBlank()
-                    ) {
-                        Text("Save")
-                    }
+                Button(
+                    onClick = {
+                        onSave(apiKeyText)
+                        focusManager.clearFocus()
+                    },
+                    enabled = apiKeyText.isNotBlank(),
+                    shapes = ButtonDefaults.shapes(),
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Save key")
                 }
             }
         }

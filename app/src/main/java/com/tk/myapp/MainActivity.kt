@@ -67,10 +67,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("api_keys") {
-                        ApiKeysScreen()
+                        ApiKeysScreen(onBack = { navController.popBackStack() })
                     }
                     composable("permissions") {
-                        PermissionsScreen()
+                        PermissionsScreen(onBack = { navController.popBackStack() })
                     }
                     composable("phone_integration") {
                         PhoneIntegrationScreen(

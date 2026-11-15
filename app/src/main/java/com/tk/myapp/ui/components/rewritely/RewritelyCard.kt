@@ -1,30 +1,36 @@
 package com.tk.myapp.ui.components.rewritely
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,16 +39,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.tk.myapp.data.common.Storage
 import com.tk.myapp.data.rewritely.AppInfo
 import com.tk.myapp.data.rewritely.Shortcut
+import com.tk.myapp.ui.components.common.Segment
+import com.tk.myapp.ui.components.common.SegmentRow
+import com.tk.myapp.ui.components.common.ShapeIcon
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun RewritelyCard(
+    shape: Shape,
     secureStorage: Storage,
     onShortcutAdded: (String, String, Boolean) -> Unit
 ) {
@@ -58,169 +69,130 @@ fun RewritelyCard(
         selectedApps = secureStorage.getSelectedApps()
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 18.dp)
-                .fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { isExpanded = !isExpanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Text(
-                        text = "Rewritely",
-                        style = MaterialTheme.typography.titleMedium
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "chevron"
+    )
+
+    Segment(shape = shape) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            SegmentRow(
+                headline = "Rewritely",
+                modifier = Modifier.clickable { isExpanded = !isExpanded },
+                supporting = "AI rewrite shortcuts",
+                leading = {
+                    ShapeIcon(
+                        icon = Icons.Outlined.AutoAwesome,
+                        polygon = MaterialShapes.Sunny,
+                        container = MaterialTheme.colorScheme.secondaryContainer,
+                        content = MaterialTheme.colorScheme.onSecondaryContainer
                     )
-                }
-                Icon(
-                    imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            if (isExpanded) {
-                if (shortcuts.isNotEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 24.dp)
-                    ) {
-                        items(shortcuts) { shortcut ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(28.dp))
-                                    .background(MaterialTheme.colorScheme.secondaryContainer)
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = shortcut.name,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.clickable { editingShortcut = shortcut }
-                                    )
-                                    IconButton(
-                                        onClick = {
-                                            secureStorage.deleteShortcut(shortcut)
-                                            shortcuts = secureStorage.getShortcuts()
-                                        },
-                                        modifier = Modifier.size(20.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = "Delete shortcut",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.onSecondaryContainer
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Button(
-                    onClick = { showDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 24.dp)
-                ) {
+                },
+                trailing = {
                     Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp)
+                        imageVector = Icons.Filled.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.rotate(chevronRotation)
                     )
-                    Text("Add Shortcut")
                 }
+            )
 
-                if (selectedApps.isNotEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 24.dp)
-                    ) {
-                        items(selectedApps) { app ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(28.dp))
-                                    .background(MaterialTheme.colorScheme.tertiaryContainer)
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = app.appName,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                                    )
-                                    IconButton(
-                                        onClick = {
-                                            val updatedApps = selectedApps.toMutableList()
-                                            updatedApps.remove(app)
-                                            secureStorage.saveSelectedApps(updatedApps)
-                                            selectedApps = secureStorage.getSelectedApps()
-                                        },
-                                        modifier = Modifier.size(20.dp)
-                                    ) {
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec()) + fadeIn(),
+                exit = shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec()) + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ChipGroupLabel("Shortcuts")
+                    if (shortcuts.isEmpty()) {
+                        EmptyHint("Add a shortcut to rewrite selected text with a saved prompt.")
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(shortcuts) { shortcut ->
+                                InputChip(
+                                    selected = true,
+                                    onClick = { editingShortcut = shortcut },
+                                    label = { Text(shortcut.name) },
+                                    trailingIcon = {
                                         Icon(
-                                            imageVector = Icons.Filled.Close,
-                                            contentDescription = "Remove app",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                            Icons.Filled.Close,
+                                            contentDescription = "Delete ${shortcut.name}",
+                                            modifier = Modifier
+                                                .size(InputChipDefaults.AvatarSize)
+                                                .clickable {
+                                                    secureStorage.deleteShortcut(shortcut)
+                                                    shortcuts = secureStorage.getShortcuts()
+                                                }
                                         )
-                                    }
-                                }
+                                    },
+                                    shape = CircleShape
+                                )
                             }
                         }
                     }
-                }
 
-                FilledTonalButton(
-                    onClick = { showChooseAppsDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                ) {
-                    Text("Choose Apps")
+                    ChipGroupLabel("Apps")
+                    if (selectedApps.isEmpty()) {
+                        EmptyHint("Choose the apps where Rewritely should appear.")
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(selectedApps) { app ->
+                                InputChip(
+                                    selected = false,
+                                    onClick = {},
+                                    label = { Text(app.appName) },
+                                    trailingIcon = {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = "Remove ${app.appName}",
+                                            modifier = Modifier
+                                                .size(InputChipDefaults.AvatarSize)
+                                                .clickable {
+                                                    secureStorage.saveSelectedApps(selectedApps - app)
+                                                    selectedApps = secureStorage.getSelectedApps()
+                                                }
+                                        )
+                                    },
+                                    shape = CircleShape
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { showDialog = true },
+                            shapes = ButtonDefaults.shapes(),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(ButtonDefaults.IconSize)
+                            )
+                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                            Text("Add shortcut")
+                        }
+                        FilledTonalButton(
+                            onClick = { showChooseAppsDialog = true },
+                            shapes = ButtonDefaults.shapes(),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Choose apps")
+                        }
+                    }
                 }
             }
         }
@@ -263,4 +235,22 @@ fun RewritelyCard(
             selectedApps = selectedApps
         )
     }
+}
+
+@Composable
+private fun ChipGroupLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun EmptyHint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }

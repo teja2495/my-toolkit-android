@@ -2,7 +2,9 @@ package com.tk.myapp.ui.theme
 
 import android.app.Activity
 import android.graphics.Color as AndroidColor
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -48,6 +50,7 @@ private val DarkColorScheme = darkColorScheme(
     surfaceContainerHighest = md_theme_dark_surfaceContainerHighest,
 )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MyAppTheme(
     content: @Composable () -> Unit
@@ -67,8 +70,9 @@ fun MyAppTheme(
         }
     }
 
-    MaterialTheme(
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
+        motionScheme = MotionScheme.expressive(),
         typography = Typography,
         shapes = Shapes,
         content = content
