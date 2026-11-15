@@ -18,6 +18,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.outlined.BatteryAlert
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -368,7 +369,13 @@ private fun BridgeStatusCard(
                     Text("Start bridge")
                 }
             } else {
-                OutlinedButton(onClick = onStop, shapes = ButtonDefaults.shapes(), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = onStop,
+                    shapes = ButtonDefaults.shapes(),
+                    border = BorderStroke(1.dp, content.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = content),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text("Stop bridge")
                 }
             }
