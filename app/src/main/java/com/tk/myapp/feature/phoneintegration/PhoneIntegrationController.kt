@@ -805,6 +805,9 @@ class PhoneIntegrationController private constructor(context: Context) {
                 .put("category", category.protocolValue)
                 .put("files", array)
                 .put("nextPageToken", pageToken + files.size)
+                .apply {
+                    message.optString("requestId").takeIf { it.isNotBlank() }?.let { put("requestId", it) }
+                }
         )
     }
 
