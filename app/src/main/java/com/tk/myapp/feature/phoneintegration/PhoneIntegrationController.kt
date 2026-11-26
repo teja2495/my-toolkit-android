@@ -725,6 +725,7 @@ class PhoneIntegrationController private constructor(context: Context) {
                     PhoneBridgeProtocol.typeShareFileResult -> handleOutgoingShareResult(message, pending)
                     PhoneBridgeProtocol.typeSetClipboard -> handleSetClipboard(message, pending)
                     PhoneBridgeProtocol.typeSetClipboardResult -> handleSetClipboardResult(message, pending)
+                    PhoneBridgeProtocol.typeCaptureScreen -> handleCaptureScreen(message, pending)
                     PhoneBridgeProtocol.typeError -> handleShareError(message)
                 }
             }
@@ -861,6 +862,35 @@ class PhoneIntegrationController private constructor(context: Context) {
                     .put("message", error.message ?: "Unable to open file from Android.")
             )
         }
+    }
+
+    private suspend fun handleCaptureScreen(message: JSONObject, pending: PendingConnection) {
+        val requestId = message.optString("requestId")
+        runCatching { PhoneScreenCapture.capturePng() }
+            .onSuccess { png ->
+                val totalChunks = (png.size + FILE_CHUNK_SIZE_BYTES - 1) / FILE_CHUNK_SIZE_BYTES
+                for (index in 0 until totalChunks) {
+                    val start = index * FILE_CHUNK_SIZE_BYTES
+                    val chunk = png.copyOfRange(start, minOf(start + FILE_CHUNK_SIZE_BYTES, png.size))
+                    pending.sendEncrypted(
+                        JSONObject()
+                            .put("type", PhoneBridgeProtocol.typeCaptureScreenResult)
+                            .put("requestId", requestId)
+                            .put("chunkIndex", index)
+                            .put("totalChunks", totalChunks)
+                            .put("data", android.util.Base64.encodeToString(chunk, android.util.Base64.NO_WRAP))
+                    )
+                }
+            }
+            .onFailure { error ->
+                Log.w(TAG, "Screen capture failed requestId=$requestId", error)
+                pending.sendEncrypted(
+                    JSONObject()
+                        .put("type", PhoneBridgeProtocol.typeError)
+                        .put("requestId", requestId)
+                        .put("message", error.message ?: "Unable to capture the Android screen.")
+                )
+            }
     }
 
     private fun handleMacListFilesResult(message: JSONObject) {

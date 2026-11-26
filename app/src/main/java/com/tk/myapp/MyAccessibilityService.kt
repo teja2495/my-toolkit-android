@@ -49,10 +49,16 @@ class MyAccessibilityService : AccessibilityService() {
     
     companion object {
         private const val TAG = "MyAccessibilityService"
+
+        /** Running instance, used by Phone Integration to take screenshots for the Mac. */
+        @Volatile
+        var instance: MyAccessibilityService? = null
+            private set
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         Log.d(TAG, "Service connected")
         startForeground()
     }
@@ -345,6 +351,7 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         super.onDestroy()
         scope.cancel()
         Log.d(TAG, "Service destroyed")
