@@ -44,13 +44,15 @@ class TypemachineStore private constructor(context: Context) {
 
     fun isExcluded(packageName: String): Boolean = packageName in _excludedApps.value
 
-    /** Stops capturing [packageName]; its existing entries are hidden until it is included again. */
+    /** Stops capturing [packageName] and deletes everything already recorded from it. */
     @Synchronized
     fun excludeApp(packageName: String) {
+        setExcluded(_excludedApps.value + packageName)
         if (activeEntryId?.let { id -> _entries.value.firstOrNull { it.id == id }?.packageName } == packageName) {
             endSession()
         }
-        setExcluded(_excludedApps.value + packageName)
+        _entries.value = _entries.value.filterNot { it.packageName == packageName }
+        scheduleSave()
     }
 
     @Synchronized
@@ -69,6 +71,7 @@ class TypemachineStore private constructor(context: Context) {
 
     @Synchronized
     fun record(packageName: String, fieldKey: String, text: String) {
+        if (isExcluded(packageName)) return
         val now = System.currentTimeMillis()
         if (text.isBlank()) {
             // Field was cleared (message sent, text deleted): next typing starts a new entry.

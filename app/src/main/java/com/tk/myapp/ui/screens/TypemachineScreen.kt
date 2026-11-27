@@ -83,12 +83,8 @@ private val CardShape = RoundedCornerShape(24.dp)
 fun TypemachineScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember { TypemachineStore.getInstance(context) }
-    val allEntries by store.entries.collectAsState()
+    val entries by store.entries.collectAsState()
     val excludedApps by store.excludedApps.collectAsState()
-    // Entries of excluded apps stay stored but hidden, so including the app again brings them back.
-    val entries = remember(allEntries, excludedApps) {
-        allEntries.filterNot { it.packageName in excludedApps }
-    }
     val appLabels = remember { HashMap<String, AppLabel>() }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -119,7 +115,7 @@ fun TypemachineScreen(onBack: () -> Unit) {
                             expanded = menuOpen,
                             onDismiss = { menuOpen = false },
                             actions = listOf(
-                                MenuAction("Clear all", Icons.Outlined.DeleteSweep, enabled = allEntries.isNotEmpty()) {
+                                MenuAction("Clear all", Icons.Outlined.DeleteSweep, enabled = entries.isNotEmpty()) {
                                     confirmClear = true
                                 },
                                 MenuAction("Excluded apps", Icons.Outlined.Block) { showExcluded = true }
