@@ -21,6 +21,7 @@ import com.tk.myapp.ui.screens.MacFolderBrowserScreen
 import com.tk.myapp.ui.screens.MainScreen
 import com.tk.myapp.ui.screens.PermissionsScreen
 import com.tk.myapp.ui.screens.PhoneIntegrationScreen
+import com.tk.myapp.ui.screens.TypemachineScreen
 import com.tk.myapp.ui.theme.MyAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -63,8 +64,12 @@ class MainActivity : ComponentActivity() {
                         MainScreen(
                             onNavigateToApiKeys = { navController.navigate("api_keys") },
                             onNavigateToPermissions = { navController.navigate("permissions") },
-                            onNavigateToPhoneIntegration = { navController.navigate("phone_integration") }
+                            onNavigateToPhoneIntegration = { navController.navigate("phone_integration") },
+                            onNavigateToTypemachine = { navController.navigate("typemachine") }
                         )
+                    }
+                    composable("typemachine") {
+                        TypemachineScreen(onBack = { navController.popBackStack() })
                     }
                     composable("api_keys") {
                         ApiKeysScreen(onBack = { navController.popBackStack() })

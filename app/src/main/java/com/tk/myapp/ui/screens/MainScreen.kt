@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,7 +66,8 @@ import com.tk.myapp.ui.components.rewritely.RewritelyCard
 fun MainScreen(
     onNavigateToApiKeys: () -> Unit,
     onNavigateToPermissions: () -> Unit,
-    onNavigateToPhoneIntegration: () -> Unit
+    onNavigateToPhoneIntegration: () -> Unit,
+    onNavigateToTypemachine: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -141,6 +143,18 @@ fun MainScreen(
                         accent = MaterialTheme.colorScheme.primaryContainer,
                         onAccent = MaterialTheme.colorScheme.onPrimaryContainer,
                         onClick = onNavigateToPhoneIntegration
+                    )
+                },
+                { shape ->
+                    NavSegment(
+                        shape = shape,
+                        title = "Typemachine",
+                        supporting = "Everything you typed in other apps",
+                        icon = Icons.Outlined.Keyboard,
+                        polygon = MaterialShapes.Sunny,
+                        accent = MaterialTheme.colorScheme.secondaryContainer,
+                        onAccent = MaterialTheme.colorScheme.onSecondaryContainer,
+                        onClick = onNavigateToTypemachine
                     )
                 },
                 { shape ->

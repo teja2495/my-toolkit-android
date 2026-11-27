@@ -19,6 +19,7 @@ import com.tk.myapp.api.Message
 import com.tk.myapp.api.OpenAiRequest
 import com.tk.myapp.data.common.Storage
 import com.tk.myapp.data.rewritely.RewritePrompt
+import com.tk.myapp.feature.typemachine.TypemachineRecorder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -98,6 +99,8 @@ class MyAccessibilityService : AccessibilityService() {
         
         when (event?.eventType) {
             AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
+                runCatching { TypemachineRecorder.onTextChanged(applicationContext, event) }
+                    .onFailure { Log.e(TAG, "Typemachine capture failed", it) }
                 val focused = findCurrentFocus(AccessibilityNodeInfo.FOCUS_INPUT)
                 handleShortcutTriggers(focused)
             }
